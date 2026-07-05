@@ -1,2680 +1,1685 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local HttpService = game:GetService("HttpService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Debris = game:GetService("Debris")
+local GrabEvents = ReplicatedStorage:WaitForChild("GrabEvents")
+local MenuToys = ReplicatedStorage:WaitForChild("MenuToys")
+local CharacterEvents = ReplicatedStorage:WaitForChild("CharacterEvents")
+local SetNetworkOwner = GrabEvents:WaitForChild("SetNetworkOwner")
+local Struggle = CharacterEvents:WaitForChild("Struggle")
+local CreateLine = GrabEvents:WaitForChild("CreateGrabLine")
+local DestroyLine = GrabEvents:WaitForChild("DestroyGrabLine")
+local DestroyToy = MenuToys:WaitForChild("DestroyToy")
+local localPlayer = Players.LocalPlayer
+local playerCharacter = localPlayer.Character or localPlayer.CharacterAdded:Wait()
+localPlayer.CharacterAdded:Connect(function(character)
+    playerCharacter = character
+end)
+local AutoRecoverDroppedPartsCoroutine
+local connectionBombReload
+local reloadBombCoroutine
+local antiExplosionConnection
+local poisonAuraCoroutine
+local deathAuraCoroutine
+local reloadBombCoroutine
+local poisonCoroutines = {}
+local strengthConnection
+local coroutineRunning = false
+local autoStruggleCoroutine
+local autoDefendCoroutine
+local auraCoroutine
+local gravityCoroutine
+local kickCoroutine
+local kickGrabCoroutine
+local hellSendGrabCoroutine
+local anchoredParts = {}
+local anchoredConnections = {}
+local compiledGroups = {}
+local compileConnections = {}
+local compileCoroutine
+local fireAllCoroutine
+local connections = {}
+local renderSteppedConnections = {}
+local ragdollAllCoroutine
+local crouchJumpCoroutine
+local crouchSpeedCoroutine
+local anchorGrabCoroutine
+local poisonGrabCoroutine
+local ufoGrabCoroutine
+local burnPart
+local fireGrabCoroutine
+local noclipGrabCoroutine
+local antiKickCoroutine
+local kickGrabConnections = {}
+local blobmanCoroutine
+local lighBitSpeedCoroutine
+local lightbitpos = {}
+local lightbitparts = {}
+local lightbitcon
+local lightbitcon2
+local lightorbitcon
+local bodyPositions = {}
+local alignOrientations = {}
+local skolko = "" 
+local decoyOffset = 15
+local stopDistance = 5
+local circleRadius = 10
+local circleSpeed = 2
+local auraToggle = 1
+local crouchWalkSpeed = 50
+local crouchJumpPower = 50
+local kickMode = 1
+local auraRadius = 20
+local lightbit = 0.3125
+local lightbitoffset = 1
+local lightbitradius = 20
+local usingradius = lightbitradius
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local Player = game.Players.LocalPlayer
+local U = loadstring(game:HttpGet("https://paste.ee/r/7X7NLEPB", true))()
 --[[
+    Utilities.IsDescendantOf(child, parent)
 
-	Rayfield Interface Suite
-	by !NOLIN
+    Utilities.GetDescendant(parent, name, className)
 
-	shlex  | Designing + Programming
-	iRay   | Programming
-	Max    | Programming
-	Damian | Programming
+    Utilities.GetAncestor(child, name, className)
 
-]]
+    Utilities.FindFirstAncestorOfType(child, className)
 
-if debugX then
-	warn('Initialising !NOLIN')
+    Utilities.GetChildrenByType(parent, className)
+
+    Utilities.GetDescendantsByType(parent, className)
+
+    Utilities.HasAttribute(instance, attributeName)
+
+    Utilities.GetAttributeOrDefault(instance, attributeName, defaultValue)
+
+    Utilities.CloneInstance(instance, newParent)
+    
+    Utilities.WaitForChildOfType(parent, className, timeout)
+
+    Utilities.IsPointInPart(part, point)
+
+    Utilities.GetDistance(pointA, pointB)
+
+    Utilities.GetAngleBetweenVectors(vectorA, vectorB)
+
+    Utilities.RotateVectorY(vector, angle)
+
+    Utilities.GetSurroundingVectors(target, radius, amount, offset)
+
+
+--]]
+local followMode = true
+local toysFolder = workspace:FindFirstChild(localPlayer.Name.."SpawnedInToys")
+local playerList = {}
+local selection 
+local blobman 
+local platforms = {}
+local ownedToys = {}
+local bombList = {}
+_G.ToyToLoad = "BombMissile"
+_G.MaxMissiles = 9
+_G.BlobmanDelay = 0.005
+
+
+
+local function isDescendantOf(target, other)
+    local currentParent = target.Parent
+    while currentParent do
+        if currentParent == other then
+            return true
+        end
+        currentParent = currentParent.Parent
+    end
+    return false
+end
+local function DestroyT(toy)
+    local toy = toy or toysFolder:FindFirstChildWhichIsA("Model")
+    DestroyToy:FireServer(toy)
+end
+
+
+local function getDescendantParts(descendantName)
+    local parts = {}
+    for _, descendant in ipairs(workspace.Map:GetDescendants()) do
+        if descendant:IsA("Part") and descendant.Name == descendantName then
+            table.insert(parts, descendant)
+        end
+    end
+    return parts
+end
+
+local poisonHurtParts = getDescendantParts("PoisonHurtPart")
+local paintPlayerParts = getDescendantParts("PaintPlayerPart")
+
+local function updatePlayerList()
+    playerList = {}
+    for _, player in ipairs(Players:GetPlayers()) do
+        table.insert(playerList, player.Name)
+    end
+end
+
+local function onPlayerAdded(player)
+    table.insert(playerList, player.Name)
+end
+
+local function onPlayerRemoving(player)
+    for i, name in ipairs(playerList) do
+        if name == player.Name then
+            table.remove(playerList, i)
+            break
+        end
+    end
+end
+
+Players.PlayerAdded:Connect(onPlayerAdded)
+Players.PlayerRemoving:Connect(onPlayerRemoving)
+for i, v in pairs(localPlayer:WaitForChild("PlayerGui"):WaitForChild("MenuGui"):WaitForChild("Menu"):WaitForChild("TabContents"):WaitForChild("Toys"):WaitForChild("Contents"):GetChildren()) do
+    if v.Name ~= "UIGridLayout" then
+        ownedToys[v.Name] = true
+    end
+end
+
+local function getNearestPlayer()
+    local nearestPlayer
+    local nearestDistance = math.huge
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= localPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local distance = (playerCharacter.HumanoidRootPart.Position - player.Character.HumanoidRootPart.Position).Magnitude
+            if distance < nearestDistance then
+                nearestDistance = distance
+                nearestPlayer = player
+            end
+        end
+    end
+
+    return nearestPlayer
+end
+
+local function cleanupConnections(connectionTable)
+    for _, connection in ipairs(connectionTable) do
+        connection:Disconnect()
+    end
+    connectionTable = {}
+end
+
+local function getVersion()
+    local url = "https://raw.githubusercontent.com/Undebolted/FTAP/main/VERSION.json"
+    local success, response = pcall(function()
+        return game:HttpGet(url)
+    end)
+
+    if success then
+        local data = HttpService:JSONDecode(response)
+        return data.version
+    else
+        warn("Failed to get version: " .. response)
+        return "Unknown"
+    end
+end
+
+local function spawnItem(itemName, position, orientation)
+    task.spawn(function()
+        local cframe = CFrame.new(position)
+        local rotation = Vector3.new(0, 90, 0)
+        ReplicatedStorage.MenuToys.SpawnToyRemoteFunction:InvokeServer(itemName, cframe, rotation)
+    end)
+end
+
+local function arson(part)
+    if not toysFolder:FindFirstChild("Campfire") then
+        spawnItem("Campfire", Vector3.new(-72.9304581, -5.96906614, -265.543732))
+    end
+    local campfire = toysFolder:FindFirstChild("Campfire")
+    burnPart = campfire:FindFirstChild("FirePlayerPart") or campfire.FirePlayerPart
+    burnPart.Size = Vector3.new(7, 7, 7)
+    burnPart.Position = part.Position
+    task.wait(0.3)
+    burnPart.Position = Vector3.new(0, -50, 0)
+end
+
+local function handleCharacterAdded(player)
+    local characterAddedConnection = player.CharacterAdded:Connect(function(character)
+        local hrp = character:WaitForChild("HumanoidRootPart")
+        local fpp = hrp:WaitForChild("FirePlayerPart")
+        fpp.Size = Vector3.new(4.5, 5, 4.5)
+        fpp.CollisionGroup = "1"
+        fpp.CanQuery = true
+    end)
+    table.insert(kickGrabConnections, characterAddedConnection)
+end
+
+local function kickGrab()
+    for _, player in pairs(Players:GetPlayers()) do
+        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local hrp = player.Character.HumanoidRootPart
+            if hrp:FindFirstChild("FirePlayerPart") then
+                local fpp = hrp.FirePlayerPart
+                fpp.Size = Vector3.new(4.5, 5.5, 4.5)
+                fpp.CollisionGroup = "1"
+                fpp.CanQuery = true
+            end
+        end
+        handleCharacterAdded(player)
+    end
+
+    local playerAddedConnection = Players.PlayerAdded:Connect(handleCharacterAdded)
+    table.insert(kickGrabConnections, playerAddedConnection)
+end
+
+local function grabHandler(grabType)
+    while true do
+        local success, err = pcall(function()
+            local child = workspace:FindFirstChild("GrabParts")
+            if child and child.Name == "GrabParts" then
+                local grabPart = child:FindFirstChild("GrabPart")
+                local grabbedPart = grabPart:FindFirstChild("WeldConstraint").Part1
+                local head = grabbedPart.Parent:FindFirstChild("Head")
+                if head then
+                    while workspace:FindFirstChild("GrabParts") do
+                        local partsTable = grabType == "poison" and poisonHurtParts or paintPlayerParts
+                        for _, part in pairs(partsTable) do
+                            part.Size = Vector3.new(2, 2, 2)
+                            part.Transparency = 1
+                            part.Position = head.Position
+                        end
+                        wait()
+                        for _, part in pairs(partsTable) do
+                            part.Position = Vector3.new(0, -200, 0)
+                        end
+                    end
+                    for _, part in pairs(partsTable) do
+                        part.Position = Vector3.new(0, -200, 0)
+                    end
+                end
+            end
+        end)
+        wait()
+    end
+end
+
+local function fireGrab()
+    while true do
+        local success, err = pcall(function()
+            local child = workspace:FindFirstChild("GrabParts")
+            if child and child.Name == "GrabParts" then
+                local grabPart = child:FindFirstChild("GrabPart")
+                local grabbedPart = grabPart:FindFirstChild("WeldConstraint").Part1
+                local head = grabbedPart.Parent:FindFirstChild("Head")
+                if head then
+                    arson(head)
+                end
+            end
+        end)
+        wait()
+    end
+end
+
+local function noclipGrab()
+    while true do
+        local success, err = pcall(function()
+            local child = workspace:FindFirstChild("GrabParts")
+            if child and child.Name == "GrabParts" then
+                local grabPart = child:FindFirstChild("GrabPart")
+                local grabbedPart = grabPart:FindFirstChild("WeldConstraint").Part1
+                local character = grabbedPart.Parent
+                if character.HumanoidRootPart then
+                    while workspace:FindFirstChild("GrabParts") do
+                        for _, part in pairs(character:GetChildren()) do
+                            if part:IsA("BasePart") then
+                                part.CanCollide = false
+                            end
+                        end
+                        wait()
+                    end
+                    for _, part in pairs(character:GetChildren()) do
+                        if part:IsA("BasePart") then
+                            part.CanCollide = true
+                        end
+                    end
+                end
+            end
+        end)
+        wait()
+    end
+end
+local function spawnItemCf(itemName, cframe)
+    task.spawn(function()
+        local rotation = Vector3.new(0, 0, 0)
+        ReplicatedStorage.MenuToys.SpawnToyRemoteFunction:InvokeServer(itemName, cframe, rotation)
+    end)
+end
+
+local function fireAll()
+    while true do
+        local success, err = pcall(function()
+            if toysFolder:FindFirstChild("Campfire") then
+                DestroyT(toysFolder:FindFirstChild("Campfire"))
+                wait(0.5)
+            end
+            spawnItemCf("Campfire", playerCharacter.Head.CFrame)
+            local campfire = toysFolder:WaitForChild("Campfire")
+            local firePlayerPart
+            for _, part in pairs(campfire:GetChildren()) do
+                if part.Name == "FirePlayerPart" then
+                    part.Size = Vector3.new(10, 10, 10)
+                    firePlayerPart = part
+                    break
+                end
+            end
+            local originalPosition = playerCharacter.Torso.Position
+            SetNetworkOwner:FireServer(firePlayerPart, firePlayerPart.CFrame)
+            playerCharacter:MoveTo(firePlayerPart.Position)
+            wait(0.3)
+            playerCharacter:MoveTo(originalPosition)
+            local bodyPosition = Instance.new("BodyPosition")
+            bodyPosition.P = 20000
+            bodyPosition.Position = playerCharacter.Head.Position + Vector3.new(0, 600, 0)
+            bodyPosition.Parent = campfire.Main
+            while true do
+                for _, player in pairs(Players:GetChildren()) do
+                    pcall(function()
+                        bodyPosition.Position = playerCharacter.Head.Position + Vector3.new(0, 600, 0)
+                        if player.Character and player.Character.HumanoidRootPart and player.Character ~= playerCharacter then
+                            firePlayerPart.Position = player.Character.HumanoidRootPart.Position or player.Character.Head.Position
+                            wait()
+                        end
+                    end)
+                end  
+                wait()
+            end
+        end)
+        if not success then
+            warn("Error in fireAll: " .. tostring(err))
+        end
+        wait()
+    end
+end
+
+local function createHighlight(parent)
+    local highlight = Instance.new("Highlight")
+    highlight.DepthMode = Enum.HighlightDepthMode.Occluded
+    highlight.FillTransparency = 1
+    highlight.Name = "Highlight"
+    highlight.OutlineColor = Color3.new(0, 0, 1)
+    highlight.OutlineTransparency = 0.5
+    highlight.Parent = parent
+    print("created highlight and set on "..parent.Name)
+    return highlight
+end
+
+local function onPartOwnerAdded(descendant, primaryPart)
+    if descendant.Name == "PartOwner" and descendant.Value ~= localPlayer.Name then
+        local highlight = primaryPart:FindFirstChild("Highlight") or U.GetDescendant(U.FindFirstAncestorOfType(primaryPart, "Model"), "Highlight", "Highlight")
+        if highlight then
+            if descendant.Value ~= localPlayer.Name then
+                highlight.OutlineColor = Color3.new(1, 0, 0)
+            else
+                highlight.OutlineColor = Color3.new(0, 0, 1)
+            end
+        end
+    end
+end
+
+local function createBodyMovers(part, position, rotation)
+    local bodyPosition = Instance.new("BodyPosition")
+    local bodyGyro = Instance.new("BodyGyro")
+
+    bodyPosition.P = 15000
+    bodyPosition.D = 200
+    bodyPosition.MaxForce = Vector3.new(5000000, 5000000, 5000000)
+    bodyPosition.Position = position
+    bodyPosition.Parent = part
+
+    bodyGyro.P = 15000
+    bodyGyro.D = 200
+    bodyGyro.MaxTorque = Vector3.new(5000000, 5000000, 5000000)
+    bodyGyro.CFrame = rotation
+    bodyGyro.Parent = part
+end
+
+local function anchorGrab()
+    while true do
+        pcall(function()
+            local grabParts = workspace:FindFirstChild("GrabParts")
+            if not grabParts then return end
+
+            local grabPart = grabParts:FindFirstChild("GrabPart")
+            if not grabPart then return end
+
+            local weldConstraint = grabPart:FindFirstChild("WeldConstraint")
+            if not weldConstraint or not weldConstraint.Part1 then return end
+
+            local primaryPart = weldConstraint.Part1.Name == "SoundPart" and weldConstraint.Part1 or weldConstraint.Part1.Parent.SoundPart or weldConstraint.Part1.Parent.PrimaryPart or weldConstraint.Part1
+            if not primaryPart then return end
+            if primaryPart.Anchored then return end
+
+            if isDescendantOf(primaryPart, workspace.Map) then return end
+            for _, player in pairs(Players:GetChildren()) do
+                if isDescendantOf(primaryPart, player.Character) then return end
+            end
+            local t = true
+            for _, v in pairs(primaryPart:GetDescendants()) do
+                if table.find(anchoredParts, v) then
+                    t = false
+                end
+
+            end
+            if t and not table.find(anchoredParts, primaryPart) then
+                local target 
+                if U.FindFirstAncestorOfType(primaryPart, "Model") and U.FindFirstAncestorOfType(primaryPart, "Model") ~= workspace then
+                    target = U.FindFirstAncestorOfType(primaryPart, "Model")
+                else
+                    target = primaryPart
+                end
+
+                local highlight = createHighlight(target)
+                table.insert(anchoredParts, primaryPart)
+                
+                print(target)
+                local connection = target.DescendantAdded:Connect(function(descendant)
+                    onPartOwnerAdded(descendant, primaryPart)
+                end)
+                table.insert(anchoredConnections, connection)
+            end
+
+            
+            if U.FindFirstAncestorOfType(primaryPart, "Model") and U.FindFirstAncestorOfType(primaryPart, "Model") ~= workspace then 
+                for _, child in ipairs(U.FindFirstAncestorOfType(primaryPart, "Model"):GetDescendants()) do
+                    if child:IsA("BodyPosition") or child:IsA("BodyGyro") then
+                        child:Destroy()
+                    end
+                end
+            else
+                for _, child in ipairs(primaryPart:GetChildren()) do
+                    if child:IsA("BodyPosition") or child:IsA("BodyGyro") then
+                        child:Destroy()
+                    end
+                end
+            end
+
+            while workspace:FindFirstChild("GrabParts") do
+                wait()
+            end
+            createBodyMovers(primaryPart, primaryPart.Position, primaryPart.CFrame)
+        end)
+        wait()
+    end
+end
+local function anchorKickGrab()
+    while true do
+        pcall(function()
+            local grabParts = workspace:FindFirstChild("GrabParts")
+            if not grabParts then return end
+
+            local grabPart = grabParts:FindFirstChild("GrabPart")
+            if not grabPart then return end
+
+            local weldConstraint = grabPart:FindFirstChild("WeldConstraint")
+            if not weldConstraint or not weldConstraint.Part1 then return end
+
+            local primaryPart = weldConstraint.Part1
+            if not primaryPart then return end
+
+            if isDescendantOf(primaryPart, workspace.Map) then return end
+            if primaryPart.Name ~= "FirePlayerPart" then return end
+
+            for _, child in ipairs(primaryPart:GetChildren()) do
+                if child:IsA("BodyPosition") or child:IsA("BodyGyro") then
+                    child:Destroy()
+                end
+            end
+
+            while workspace:FindFirstChild("GrabParts") do
+                wait()
+            end
+            createBodyMovers(primaryPart, primaryPart.Position, primaryPart.CFrame)
+        end)
+        wait()
+    end
+end
+
+local function cleanupAnchoredParts()
+    for _, part in ipairs(anchoredParts) do
+        if part then
+            if part:FindFirstChild("BodyPosition") then
+                part.BodyPosition:Destroy()
+            end
+            if part:FindFirstChild("BodyGyro") then
+                part.BodyGyro:Destroy()
+            end
+            local highlight = part:FindFirstChild("Highlight") or part.Parent and part.Parent:FindFirstChild("Highlight")
+            if highlight then
+                highlight:Destroy()
+            end
+        end
+    end
+
+    cleanupConnections(anchoredConnections)
+    anchoredParts = {}
+end
+
+local function updateBodyMovers(primaryPart)
+    for _, group in ipairs(compiledGroups) do
+        if group.primaryPart and group.primaryPart == primaryPart then
+            for _, data in ipairs(group.group) do
+                local bodyPosition = data.part:FindFirstChild("BodyPosition")
+                local bodyGyro = data.part:FindFirstChild("BodyGyro")
+                if bodyPosition then
+                    bodyPosition.Position = (primaryPart.CFrame * data.offset).Position
+                end
+                if bodyGyro then
+                    bodyGyro.CFrame = primaryPart.CFrame * data.offset
+                end
+            end
+        end
+    end
+end
+
+local function compileGroup()
+    if #anchoredParts == 0 then 
+        Rayfield:Notify({Title = "Error",Content = "No anchored parts found",Duration = 5,Image = 4483362458,})
+    else
+        Rayfield:Notify({Title = "Success",Content = "Compiled "..#anchoredParts.." Toys together",Duration = 5,Image = 4483362458,})
+    end
+
+    local primaryPart = anchoredParts[1]
+    if not primaryPart then return end
+
+    local highlight =  primaryPart:FindFirstChild("Highlight") or primaryPart.Parent:FindFirstChild("Highlight")
+    if not highlight then
+        highlight = createHighlight(primaryPart.Parent:IsA("Model") and primaryPart.Parent or primaryPart)
+    end
+    highlight.OutlineColor = Color3.new(0, 1, 0) 
+    
+
+    local group = {}
+    for _, part in ipairs(anchoredParts) do
+        if part ~= primaryPart then
+            local offset = primaryPart.CFrame:toObjectSpace(part.CFrame)
+            table.insert(group, {part = part, offset = offset})
+        end
+    end
+    table.insert(compiledGroups, {primaryPart = primaryPart, group = group})
+    
+    local connection = primaryPart:GetPropertyChangedSignal("CFrame"):Connect(function()
+        updateBodyMovers(primaryPart)
+    end)
+    table.insert(compileConnections, connection)
+
+    local renderSteppedConnection = RunService.Heartbeat:Connect(function()
+        updateBodyMovers(primaryPart)
+    end)
+    table.insert(renderSteppedConnections, renderSteppedConnection)
+end
+
+local function cleanupCompiledGroups()
+    for _, groupData in ipairs(compiledGroups) do
+        for _, data in ipairs(groupData.group) do
+            if data.part then
+                if data.part:FindFirstChild("BodyPosition") then
+                    data.part.BodyPosition:Destroy()
+                end
+                if data.part:FindFirstChild("BodyGyro") then
+                    data.part.BodyGyro:Destroy()
+                end
+            end
+        end
+        if groupData.primaryPart and groupData.primaryPart.Parent then
+            local highlight = groupData.primaryPart:FindFirstChild("Highlight") or groupData.primaryPart.Parent:FindFirstChild("Highlight")
+            if highlight then
+                highlight:Destroy()
+            end
+        end
+    end
+    
+    cleanupConnections(compileConnections)
+    cleanupConnections(renderSteppedConnections)
+    compiledGroups = {}
+end
+
+local function compileCoroutineFunc()
+    while true do
+        pcall(function()
+            for _, groupData in ipairs(compiledGroups) do
+                updateBodyMovers(groupData.primaryPart)
+            end
+        end)
+        wait()
+    end
+end
+
+local function unanchorPrimaryPart()
+    local primaryPart = anchoredParts[1]
+    if not primaryPart then return end
+    if primaryPart:FindFirstChild("BodyPosition") then
+        primaryPart.BodyPosition:Destroy()
+    end
+    if primaryPart:FindFirstChild("BodyGyro") then
+        primaryPart.BodyGyro:Destroy()
+    end
+    local highlight = primaryPart.Parent:FindFirstChild("Highlight") or primaryPart:FindFirstChild("Highlight")
+    if highlight then
+        highlight:Destroy()
+    end
+end
+local function recoverParts()
+    while true do
+        local success, err = pcall(function()
+            local character = localPlayer.Character
+            if character and character:FindFirstChild("Head") and character:FindFirstChild("HumanoidRootPart") then
+                local head = character.Head
+                local humanoidRootPart = character.HumanoidRootPart
+
+                for _, partModel in pairs(anchoredParts) do
+                    coroutine.wrap(function()
+                        if partModel then
+                            local distance = (partModel.Position - humanoidRootPart.Position).Magnitude
+                            if distance <= 30 then
+                                local highlight = partModel:FindFirstChild("Highlight") or partModel.Parent:FindFirstChild("Highlight")
+                                if highlight and highlight.OutlineColor == Color3.new(1, 0, 0) then
+                                    SetNetworkOwner:FireServer(partModel, partModel.CFrame)
+                                    if partModel:WaitForChild("PartOwner") and partModel.PartOwner.Value == localPlayer.Name then
+                                        highlight.OutlineColor = Color3.new(0, 0, 1)
+                                        print("yoyoyo set and r eady")
+                                    end
+                                end
+                            end
+                        end
+                    end)()
+                end
+            end
+        end)
+        wait(0.02)
+    end
+end
+local function ragdollAll()
+    while true do
+        local success, err = pcall(function()
+            if not toysFolder:FindFirstChild("FoodBanana") then
+                spawnItem("FoodBanana", Vector3.new(-72.9304581, -5.96906614, -265.543732))
+            end
+            local banana = toysFolder:WaitForChild("FoodBanana")
+            local bananaPeel
+            for _, part in pairs(banana:GetChildren()) do
+                if part.Name == "BananaPeel" and part:FindFirstChild("TouchInterest") then
+                    part.Size = Vector3.new(10, 10, 10)
+                    part.Transparency = 1
+                    bananaPeel = part
+                    break
+                end
+            end
+            local bodyPosition = Instance.new("BodyPosition")
+            bodyPosition.P = 20000
+            bodyPosition.Parent = banana.Main
+            while true do
+                for _, player in pairs(Players:GetChildren()) do
+                    pcall(function()
+                        if player.Character and player.Character ~= playerCharacter then
+                            bananaPeel.Position = player.Character.HumanoidRootPart.Position or player.Character.Head.Position
+                            bodyPosition.Position = playerCharacter.Head.Position + Vector3.new(0, 600, 0)
+                            wait()
+                        end
+                    end)
+                end   
+                wait()
+            end
+        end)
+        if not success then
+            warn("Error in ragdollAll: " .. tostring(err))
+        end
+        wait()
+    end
+end
+local function reloadMissile(bool)
+    if bool then
+        if not ownedToys[_G.ToyToLoad] then
+            Rayfield:Notify({
+                Title = "Missing toy",
+                Content = "You do not own the ".._G.ToyToLoad.." toy.",
+                Duration = 3,
+                Image = 4483362458,
+             })
+            return
+        end
+
+        if not reloadBombCoroutine then
+            reloadBombCoroutine = coroutine.create(function()
+                connectionBombReload = toysFolder.ChildAdded:Connect(function(child)
+                    if child.Name == _G.ToyToLoad and child:WaitForChild("ThisToysNumber", 1) then
+                        if child.ThisToysNumber.Value == (toysFolder.ToyNumber.Value - 1) then
+                            local connection2
+                            connection2 = toysFolder.ChildRemoved:Connect(function(child2)
+                                if child2 == child then
+                                    connection2:Disconnect()
+                                end
+                            end)
+
+                            SetNetworkOwner:FireServer(child.Body, child.Body.CFrame)
+                            local waiting = child.Body:WaitForChild("PartOwner", 0.5)
+                            local connection = child.DescendantAdded:Connect(function(descendant)
+                                if descendant.Name == "PartOwner" then
+                                    if descendant.Value ~= localPlayer.Name then
+                                        DestroyT(child)
+                                        connection:Disconnect()
+                                    end
+                                end
+                            end)
+                            Debris:AddItem(connectio, 60)
+                            if waiting and waiting.Value == localPlayer.Name then
+                                for _, v in pairs(child:GetChildren()) do
+                                    if v:IsA("BasePart") then
+                                        v.CanCollide = false
+                                    end
+                                end
+                                child:SetPrimaryPartCFrame(CFrame.new(-72.9304581, -3.96906614, -265.543732))
+                                wait(0.2)
+                                for _, v in pairs(child:GetChildren()) do
+                                    if v:IsA("BasePart") then
+                                        v.Anchored = true
+                                    end
+                                end
+                                table.insert(bombList, child)
+                                child.AncestryChanged:Connect(function()
+                                    if not child.Parent then
+                                        for i, bomb in ipairs(bombList) do
+                                            if bomb == child then
+                                                table.remove(bombList, i)
+                                                break
+                                            end
+                                        end
+                                    end
+                                end)
+                                connection2:Disconnect()
+                            else
+                                DestroyT(child)
+                            end
+                        end
+                    end
+                end)
+
+                while true do
+                    if localPlayer.CanSpawnToy and localPlayer.CanSpawnToy.Value and #bombList < _G.MaxMissiles and playerCharacter:FindFirstChild("Head") then
+                        spawnItemCf(_G.ToyToLoad, playerCharacter.Head.CFrame or playerCharacter.HumanoidRootPart.CFrame)
+                    end
+                    RunService.Heartbeat:Wait()
+                end
+            end)
+            coroutine.resume(reloadBombCoroutine)
+        end
+    else
+        if reloadBombCoroutine then
+            coroutine.close(reloadBombCoroutine)
+            reloadBombCoroutine = nil
+        end
+        if connectionBombReload then
+            connectionBombReload:Disconnect()
+        end
+    end
+end
+local function setupAntiExplosion(character)
+    local partOwner = character:WaitForChild("Humanoid"):FindFirstChild("Ragdolled")
+    if partOwner then
+        local partOwnerChangedConn
+        partOwnerChangedConn = partOwner:GetPropertyChangedSignal("Value"):Connect(function()
+            if partOwner.Value then
+                for _, part in ipairs(character:GetChildren()) do
+                    if part:IsA("BasePart") then
+                        part.Anchored = true
+                    end
+                end
+            else
+                for _, part in ipairs(character:GetChildren()) do
+                    if part:IsA("BasePart") then
+                        part.Anchored = false
+                    end
+                end
+            end
+        end)
+        antiExplosionConnection = partOwnerChangedConn
+    end
+end
+
+
+local blobalter = 1
+local function blobGrabPlayer(player, blobman)
+    if blobalter == 1 then
+        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local args = {
+                [1] = blobman:FindFirstChild("LeftDetector"),
+                [2] = player.Character:FindFirstChild("HumanoidRootPart"),
+                [3] = blobman:FindFirstChild("LeftDetector"):FindFirstChild("LeftWeld")
+            }
+            blobman:WaitForChild("BlobmanSeatAndOwnerScript"):WaitForChild("CreatureGrab"):FireServer(unpack(args))
+            blobalter = 2
+        end
+    else
+        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local args = {
+                [1] = blobman:FindFirstChild("RightDetector"),
+                [2] = player.Character:FindFirstChild("HumanoidRootPart"),
+                [3] = blobman:FindFirstChild("RightDetector"):FindFirstChild("RightWeld")
+            }
+            blobman:WaitForChild("BlobmanSeatAndOwnerScript"):WaitForChild("CreatureGrab"):FireServer(unpack(args))
+            blobalter = 1
+        end
+    end
 end
 
 
 
-local function getService(name)
-	local service = game:GetService(name)
-	return if cloneref then cloneref(service) else service
+
+local version = getVersion()
+
+local whitelistIdsStr = game:HttpGet("https://raw.githubusercontent.com/Undebolted/FTAP/main/WhitelistedUserId.txt")
+local whitelistIdsTbl = HttpService:JSONDecode(whitelistIdsStr)
+local whitelistIds = {}
+
+for id, _ in pairs(whitelistIdsTbl) do
+    if tonumber(id) then
+        table.insert(whitelistIds, tonumber(id))
+        print(id)
+    end
 end
 
--- Services
-local UserInputService = getService("UserInputService")
-local TweenService = getService("TweenService")
-local Players = getService("Players")
-local CoreGui = getService("CoreGui")
-
--- Loads and executes a function hosted on a remote URL. Cancels the request if the requested URL takes too long to respond.
--- Errors with the function are caught and logged to the output
-local function loadWithTimeout(url: string, timeout: number?): ...any
-	assert(type(url) == "string", "Expected string, got " .. type(url))
-	timeout = timeout or 5
-	local requestCompleted = false
-	local success, result = false, nil
-
-	local requestThread = task.spawn(function()
-		local fetchSuccess, fetchResult = pcall(game.HttpGet, game, url) -- game:HttpGet(url)
-		-- If the request fails the content can be empty, even if fetchSuccess is true
-		if not fetchSuccess or #fetchResult == 0 then
-			if #fetchResult == 0 then
-				fetchResult = "Empty response" -- Set the error message
-			end
-			success, result = false, fetchResult
-			requestCompleted = true
-			return
-		end
-		local content = fetchResult -- Fetched content
-		local execSuccess, execResult = pcall(function()
-			return loadstring(content)()
-		end)
-		success, result = execSuccess, execResult
-		requestCompleted = true
-	end)
-
-	local timeoutThread = task.delay(timeout, function()
-		if not requestCompleted then
-			warn("Request for " .. url .. " timed out after " .. tostring(timeout) .. " seconds")
-			task.cancel(requestThread)
-			result = "Request timed out"
-			requestCompleted = true
-		end
-	end)
-
-	-- Wait for completion or timeout
-	while not requestCompleted do
-		task.wait()
-	end
-	-- Cancel timeout thread if still running when request completes
-	if coroutine.status(timeoutThread) ~= "dead" then
-		task.cancel(timeoutThread)
-	end
-	if not success then
-		warn("Failed to process " .. tostring(url) .. ": " .. tostring(result))
-	end
-	return if success then result else nil
+local isWhitelisted = false
+for _, v in pairs(whitelistIds) do
+    if v == localPlayer.UserId then
+        isWhitelisted = true
+        break
+    end
 end
 
-local requestsDisabled = false
-local customAssetId = nil
-local secureMode = false
-if getgenv then
-	local ok, result = pcall(function() return getgenv().DISABLE_RAYFIELD_REQUESTS end)
-	if ok and result then requestsDisabled = true end
-	local ok2, result2 = pcall(function() return getgenv().RAYFIELD_ASSET_ID end)
-	if ok2 and type(result2) == "number" then customAssetId = result2 end
-	local ok3, result3 = pcall(function() return getgenv().RAYFIELD_SECURE end)
-	if ok3 and result3 then secureMode = true end
+local localVersion = "8.2-stable"
+if localVersion ~= version then
+    Rayfield:Notify({Title = "Venom X",Content = "Script.Ftap",Duration = 6.5,Image = 4483362458,})
+    setclipboard('loadstring(game:HttpGet("https://raw.githubusercontent.com/Undebolted/FTAP/main/Script.lua",true))()')
+    wait(12)
+    Rayfield:Destroy()
+    wait(9e9)
 end
 
-if secureMode then
-	local _error = error
-	local _assert = assert
-	warn = function(...) end
-	print = function(...) end
-	error = function(_, level) _error("", level) end
-	assert = function(v, ...) return _assert(v) end
-end
-
-local secureWarnings = {}
-local customAssets = {}
-
-local function secureNotify(wType, title, content)
-	if secureWarnings[wType] then return end
-	secureWarnings[wType] = true
-	task.spawn(function()
-		while not RayfieldLibrary or not RayfieldLibrary.Notify do task.wait(0.5) end
-		RayfieldLibrary:Notify({
-			Title = title,
-			Content = content,
-			Duration = 8,
-		})
-	end)
-end
-local InterfaceBuild = 'UU2NX'
-local Release = "Build 1.749"
-local RayfieldFolder = "Rayfield"
-local ConfigurationFolder = RayfieldFolder.."/Configurations"
-local ConfigurationExtension = ".rfld"
-local settingsTable = {
-	General = {
-		-- if needs be in order just make getSetting(name)
-		rayfieldOpen = {Type = 'bind', Value = 'K', Name = '!NOLIN Keybind'},
-		-- buildwarnings
-		-- rayfieldprompts
-
-	},
-	System = {
-		usageAnalytics = {Type = 'toggle', Value = true, Name = 'Anonymised Analytics'},
-	}
-}
-
--- Settings that have been overridden by the developer. These will not be saved to the user's configuration file
--- Overridden settings always take precedence over settings in the configuration file, and are cleared if the user changes the setting in the UI
-local overriddenSettings: { [string]: any } = {} -- For example, overriddenSettings["System.rayfieldOpen"] = "J"
-local function overrideSetting(category: string, name: string, value: any)
-	overriddenSettings[category .. "." .. name] = value
-end
-
-local function getSetting(category: string, name: string): any
-	if overriddenSettings[category .. "." .. name] ~= nil then
-		return overriddenSettings[category .. "." .. name]
-	elseif settingsTable[category][name] ~= nil then
-		return settingsTable[category][name].Value
-	end
-end
-
--- If requests/analytics have been disabled by developer, set the user-facing setting to false as well
-if requestsDisabled then
-	overrideSetting("System", "usageAnalytics", false)
-end
-
-local HttpService = getService('HttpService')
-local RunService = getService('RunService')
-
--- Environment Check
-local useStudio = RunService:IsStudio() or false
-
-local settingsCreated = false
-local settingsInitialized = false -- Whether the UI elements in the settings page have been set to the proper values
-local prompt = useStudio and require(script.Parent.prompt) or loadWithTimeout('https://raw.githubusercontent.com/SiriusSoftwareLtd/Sirius/refs/heads/request/prompt.lua')
-local requestFunc = (syn and syn.request) or (fluxus and fluxus.request) or (http and http.request) or http_request or request
-
--- Validate prompt loaded correctly
-if not prompt and not useStudio then
-	warn("Failed to load prompt library, using fallback")
-	prompt = {
-		create = function() end -- No-op fallback
-	}
-end
-
-
--- The function below provides a safe alternative for calling error-prone functions
--- Especially useful for filesystem function (writefile, makefolder, etc.)
-local function callSafely(func, ...)
-	if func then
-		local success, result = pcall(func, ...)
-		if not success then
-			warn("Rayfield | Function failed with error: ", result)
-			return false
-		else
-			return result
-		end
-	end
-end
-
--- Ensures a folder exists by creating it if needed
-local function ensureFolder(folderPath)
-	if isfolder and not callSafely(isfolder, folderPath) then
-		callSafely(makefolder, folderPath)
-	end
-end
-
-local function loadSettings()
-	local file = nil
-
-	local success, result =	pcall(function()
-		if callSafely(isfolder, RayfieldFolder) then
-			if callSafely(isfile, RayfieldFolder..'/settings'..ConfigurationExtension) then
-				file = callSafely(readfile, RayfieldFolder..'/settings'..ConfigurationExtension)
-			end
-		end
-
-		-- for debug in studio
-		if useStudio then
-			file = [[
-	{"General":{"rayfieldOpen":{"Value":"K","Type":"bind","Name":"Rayfield Keybind","Element":{"HoldToInteract":false,"Ext":true,"Name":"Rayfield Keybind","Set":null,"CallOnChange":true,"Callback":null,"CurrentKeybind":"K"}}},"System":{"usageAnalytics":{"Value":false,"Type":"toggle","Name":"Anonymised Analytics","Element":{"Ext":true,"Name":"Anonymised Analytics","Set":null,"CurrentValue":false,"Callback":null}}}}
-]]
-		end
-
-		if file then
-			local decodeSuccess, decodedFile = pcall(function() return HttpService:JSONDecode(file) end)
-			if decodeSuccess then
-				file = decodedFile
-			else
-				file = {}
-			end
-		else
-			file = {}
-		end
-
-
-		if not settingsCreated then
-			return
-		end
-
-		-- Check if settings file has any entries
-		if next(file) ~= nil then
-			-- If it does, apply them
-			for categoryName, categoryTable in file do
-				for settingName, setting in categoryTable do
-					local default = settingsTable[categoryName] and settingsTable[categoryName][settingName]
-					if not default then continue end -- ignore keys not in settingsTable (old/renamed settings)
-					local settingType = typeof(default.Value)
-					-- Make sure setting has the correct type
-					if not (settingType == typeof(setting.Value)) then
-						warn("Rayfield | Error parsing settings file. '"..settingName.."' must be a "..settingType)
-						continue
-					end
-					default.Value = setting.Value
-				end
-			end
-		end
-		-- Apply the actual setting value to UI elements
-		for categoryName, categoryTable in settingsTable do
-			for settingName, setting in categoryTable do
-				if setting.Element then
-					setting.Element:Set(getSetting(categoryName, settingName))
-				end
-			end
-		end
-		settingsInitialized = true
-	end)
-
-	if not success then 
-		if writefile then
-			warn('!NOLIN had an issue accessing configuration saving capability.')
-		end
-	end
-end
-
-if debugX then
-	warn('Now Loading Settings Configuration !NOLIN')
-end
-
-loadSettings()
-
-if debugX then
-	warn('Settings Loaded')
-end
-
-local ANALYTICS_TOKEN = "05de7f9fd320d3b8428cd1c77014a337b85b6c8efee2c5914f5ab5700c354b9a"
-
-local reporter = nil
-if not requestsDisabled and not useStudio then
-	local fetchSuccess, fetchResult = pcall((game :: any).HttpGet, game, "https://raw.githubusercontent.com/SiriusSoftwareLtd/Rayfield/refs/heads/main/reporter.lua")
-	if fetchSuccess and #fetchResult > 0 then
-		local execSuccess, Analytics = pcall(function()
-			return (loadstring(fetchResult) :: any)()
-		end)
-		if execSuccess and Analytics then
-			pcall(function()
-				reporter = Analytics.new({
-					url          = "https://rayfield-collect.sirius-software-ltd.workers.dev",
-					token        = ANALYTICS_TOKEN,
-					product_name = "Rayfield",
-					category     = "UILibrary",
-				})
-			end)
-		end
-	end
-end
-
--- only ping ~1 in 10 runs (heartbeat-per-execution got expensive)
-if not useStudio and math.random(10) == 1 then
-	task.spawn(function()
-		pcall((game :: any).HttpGet, game, "https://www.sentivel.com/api/heartbeat/81074364b461f8da81bad6fdc363c3b927f884d6fc28d806a15ee50ca1e68c78")
-	end)
-end
-
-local promptUser = 2
-
-if promptUser == 1 and prompt and type(prompt.create) == "function" then
-	prompt.create(
-		'Be cautious when running scripts',
-	    [[Please be careful when running scripts from unknown developers. This script has already been ran.
-
-<font transparency='0.3'>Some scripts may steal your items or in-game goods.</font>]],
-		'Okay',
-		'',
-		function()
-
-		end
-	)
-end
-
-if debugX then
-	warn('Moving on to continue initialisation')
-end
-
-local RayfieldLibrary = {
-	Flags = {},
-	Theme = {
-		Default = {
-			TextColor = Color3.fromRGB(240, 240, 240),
-
-			Background = Color3.fromRGB(25, 25, 25),
-			Topbar = Color3.fromRGB(34, 34, 34),
-			Shadow = Color3.fromRGB(20, 20, 20),
-
-			NotificationBackground = Color3.fromRGB(20, 20, 20),
-			NotificationActionsBackground = Color3.fromRGB(230, 230, 230),
-
-			TabBackground = Color3.fromRGB(80, 80, 80),
-			TabStroke = Color3.fromRGB(85, 85, 85),
-			TabBackgroundSelected = Color3.fromRGB(210, 210, 210),
-			TabTextColor = Color3.fromRGB(240, 240, 240),
-			SelectedTabTextColor = Color3.fromRGB(50, 50, 50),
-
-			ElementBackground = Color3.fromRGB(35, 35, 35),
-			ElementBackgroundHover = Color3.fromRGB(40, 40, 40),
-			SecondaryElementBackground = Color3.fromRGB(25, 25, 25),
-			ElementStroke = Color3.fromRGB(50, 50, 50),
-			SecondaryElementStroke = Color3.fromRGB(40, 40, 40),
-
-			SliderBackground = Color3.fromRGB(50, 138, 220),
-			SliderProgress = Color3.fromRGB(50, 138, 220),
-			SliderStroke = Color3.fromRGB(58, 163, 255),
-
-			ToggleBackground = Color3.fromRGB(30, 30, 30),
-			ToggleEnabled = Color3.fromRGB(0, 146, 214),
-			ToggleDisabled = Color3.fromRGB(100, 100, 100),
-			ToggleEnabledStroke = Color3.fromRGB(0, 170, 255),
-			ToggleDisabledStroke = Color3.fromRGB(125, 125, 125),
-			ToggleEnabledOuterStroke = Color3.fromRGB(100, 100, 100),
-			ToggleDisabledOuterStroke = Color3.fromRGB(65, 65, 65),
-
-			DropdownSelected = Color3.fromRGB(40, 40, 40),
-			DropdownUnselected = Color3.fromRGB(30, 30, 30),
-
-			InputBackground = Color3.fromRGB(30, 30, 30),
-			InputStroke = Color3.fromRGB(65, 65, 65),
-			PlaceholderColor = Color3.fromRGB(178, 178, 178)
-		},
-
-		Ocean = {
-			TextColor = Color3.fromRGB(230, 240, 240),
-
-			Background = Color3.fromRGB(20, 30, 30),
-			Topbar = Color3.fromRGB(25, 40, 40),
-			Shadow = Color3.fromRGB(15, 20, 20),
-
-			NotificationBackground = Color3.fromRGB(25, 35, 35),
-			NotificationActionsBackground = Color3.fromRGB(230, 240, 240),
-
-			TabBackground = Color3.fromRGB(40, 60, 60),
-			TabStroke = Color3.fromRGB(50, 70, 70),
-			TabBackgroundSelected = Color3.fromRGB(100, 180, 180),
-			TabTextColor = Color3.fromRGB(210, 230, 230),
-			SelectedTabTextColor = Color3.fromRGB(20, 50, 50),
-
-			ElementBackground = Color3.fromRGB(30, 50, 50),
-			ElementBackgroundHover = Color3.fromRGB(40, 60, 60),
-			SecondaryElementBackground = Color3.fromRGB(30, 45, 45),
-			ElementStroke = Color3.fromRGB(45, 70, 70),
-			SecondaryElementStroke = Color3.fromRGB(40, 65, 65),
-
-			SliderBackground = Color3.fromRGB(0, 110, 110),
-			SliderProgress = Color3.fromRGB(0, 140, 140),
-			SliderStroke = Color3.fromRGB(0, 160, 160),
-
-			ToggleBackground = Color3.fromRGB(30, 50, 50),
-			ToggleEnabled = Color3.fromRGB(0, 130, 130),
-			ToggleDisabled = Color3.fromRGB(70, 90, 90),
-			ToggleEnabledStroke = Color3.fromRGB(0, 160, 160),
-			ToggleDisabledStroke = Color3.fromRGB(85, 105, 105),
-			ToggleEnabledOuterStroke = Color3.fromRGB(50, 100, 100),
-			ToggleDisabledOuterStroke = Color3.fromRGB(45, 65, 65),
-
-			DropdownSelected = Color3.fromRGB(30, 60, 60),
-			DropdownUnselected = Color3.fromRGB(25, 40, 40),
-
-			InputBackground = Color3.fromRGB(30, 50, 50),
-			InputStroke = Color3.fromRGB(50, 70, 70),
-			PlaceholderColor = Color3.fromRGB(140, 160, 160)
-		},
-
-		AmberGlow = {
-			TextColor = Color3.fromRGB(255, 245, 230),
-
-			Background = Color3.fromRGB(45, 30, 20),
-			Topbar = Color3.fromRGB(55, 40, 25),
-			Shadow = Color3.fromRGB(35, 25, 15),
-
-			NotificationBackground = Color3.fromRGB(50, 35, 25),
-			NotificationActionsBackground = Color3.fromRGB(245, 230, 215),
-
-			TabBackground = Color3.fromRGB(75, 50, 35),
-			TabStroke = Color3.fromRGB(90, 60, 45),
-			TabBackgroundSelected = Color3.fromRGB(230, 180, 100),
-			TabTextColor = Color3.fromRGB(250, 220, 200),
-			SelectedTabTextColor = Color3.fromRGB(50, 30, 10),
-
-			ElementBackground = Color3.fromRGB(60, 45, 35),
-			ElementBackgroundHover = Color3.fromRGB(70, 50, 40),
-			SecondaryElementBackground = Color3.fromRGB(55, 40, 30),
-			ElementStroke = Color3.fromRGB(85, 60, 45),
-			SecondaryElementStroke = Color3.fromRGB(75, 50, 35),
-
-			SliderBackground = Color3.fromRGB(220, 130, 60),
-			SliderProgress = Color3.fromRGB(250, 150, 75),
-			SliderStroke = Color3.fromRGB(255, 170, 85),
-
-			ToggleBackground = Color3.fromRGB(55, 40, 30),
-			ToggleEnabled = Color3.fromRGB(240, 130, 30),
-			ToggleDisabled = Color3.fromRGB(90, 70, 60),
-			ToggleEnabledStroke = Color3.fromRGB(255, 160, 50),
-			ToggleDisabledStroke = Color3.fromRGB(110, 85, 75),
-			ToggleEnabledOuterStroke = Color3.fromRGB(200, 100, 50),
-			ToggleDisabledOuterStroke = Color3.fromRGB(75, 60, 55),
-
-			DropdownSelected = Color3.fromRGB(70, 50, 40),
-			DropdownUnselected = Color3.fromRGB(55, 40, 30),
-
-			InputBackground = Color3.fromRGB(60, 45, 35),
-			InputStroke = Color3.fromRGB(90, 65, 50),
-			PlaceholderColor = Color3.fromRGB(190, 150, 130)
-		},
-
-		Light = {
-			TextColor = Color3.fromRGB(40, 40, 40),
-
-			Background = Color3.fromRGB(245, 245, 245),
-			Topbar = Color3.fromRGB(230, 230, 230),
-			Shadow = Color3.fromRGB(200, 200, 200),
-
-			NotificationBackground = Color3.fromRGB(250, 250, 250),
-			NotificationActionsBackground = Color3.fromRGB(240, 240, 240),
-
-			TabBackground = Color3.fromRGB(235, 235, 235),
-			TabStroke = Color3.fromRGB(215, 215, 215),
-			TabBackgroundSelected = Color3.fromRGB(255, 255, 255),
-			TabTextColor = Color3.fromRGB(80, 80, 80),
-			SelectedTabTextColor = Color3.fromRGB(0, 0, 0),
-
-			ElementBackground = Color3.fromRGB(240, 240, 240),
-			ElementBackgroundHover = Color3.fromRGB(225, 225, 225),
-			SecondaryElementBackground = Color3.fromRGB(235, 235, 235),
-			ElementStroke = Color3.fromRGB(210, 210, 210),
-			SecondaryElementStroke = Color3.fromRGB(210, 210, 210),
-
-			SliderBackground = Color3.fromRGB(150, 180, 220),
-			SliderProgress = Color3.fromRGB(100, 150, 200), 
-			SliderStroke = Color3.fromRGB(120, 170, 220),
-
-			ToggleBackground = Color3.fromRGB(220, 220, 220),
-			ToggleEnabled = Color3.fromRGB(0, 146, 214),
-			ToggleDisabled = Color3.fromRGB(150, 150, 150),
-			ToggleEnabledStroke = Color3.fromRGB(0, 170, 255),
-			ToggleDisabledStroke = Color3.fromRGB(170, 170, 170),
-			ToggleEnabledOuterStroke = Color3.fromRGB(100, 100, 100),
-			ToggleDisabledOuterStroke = Color3.fromRGB(180, 180, 180),
-
-			DropdownSelected = Color3.fromRGB(230, 230, 230),
-			DropdownUnselected = Color3.fromRGB(220, 220, 220),
-
-			InputBackground = Color3.fromRGB(240, 240, 240),
-			InputStroke = Color3.fromRGB(180, 180, 180),
-			PlaceholderColor = Color3.fromRGB(140, 140, 140)
-		},
-
-		Amethyst = {
-			TextColor = Color3.fromRGB(240, 240, 240),
-
-			Background = Color3.fromRGB(30, 20, 40),
-			Topbar = Color3.fromRGB(40, 25, 50),
-			Shadow = Color3.fromRGB(20, 15, 30),
-
-			NotificationBackground = Color3.fromRGB(35, 20, 40),
-			NotificationActionsBackground = Color3.fromRGB(240, 240, 250),
-
-			TabBackground = Color3.fromRGB(60, 40, 80),
-			TabStroke = Color3.fromRGB(70, 45, 90),
-			TabBackgroundSelected = Color3.fromRGB(180, 140, 200),
-			TabTextColor = Color3.fromRGB(230, 230, 240),
-			SelectedTabTextColor = Color3.fromRGB(50, 20, 50),
-
-			ElementBackground = Color3.fromRGB(45, 30, 60),
-			ElementBackgroundHover = Color3.fromRGB(50, 35, 70),
-			SecondaryElementBackground = Color3.fromRGB(40, 30, 55),
-			ElementStroke = Color3.fromRGB(70, 50, 85),
-			SecondaryElementStroke = Color3.fromRGB(65, 45, 80),
-
-			SliderBackground = Color3.fromRGB(100, 60, 150),
-			SliderProgress = Color3.fromRGB(130, 80, 180),
-			SliderStroke = Color3.fromRGB(150, 100, 200),
-
-			ToggleBackground = Color3.fromRGB(45, 30, 55),
-			ToggleEnabled = Color3.fromRGB(120, 60, 150),
-			ToggleDisabled = Color3.fromRGB(94, 47, 117),
-			ToggleEnabledStroke = Color3.fromRGB(140, 80, 170),
-			ToggleDisabledStroke = Color3.fromRGB(124, 71, 150),
-			ToggleEnabledOuterStroke = Color3.fromRGB(90, 40, 120),
-			ToggleDisabledOuterStroke = Color3.fromRGB(80, 50, 110),
-
-			DropdownSelected = Color3.fromRGB(50, 35, 70),
-			DropdownUnselected = Color3.fromRGB(35, 25, 50),
-
-			InputBackground = Color3.fromRGB(45, 30, 60),
-			InputStroke = Color3.fromRGB(80, 50, 110),
-			PlaceholderColor = Color3.fromRGB(178, 150, 200)
-		},
-
-		Green = {
-			TextColor = Color3.fromRGB(30, 60, 30),
-
-			Background = Color3.fromRGB(235, 245, 235),
-			Topbar = Color3.fromRGB(210, 230, 210),
-			Shadow = Color3.fromRGB(200, 220, 200),
-
-			NotificationBackground = Color3.fromRGB(240, 250, 240),
-			NotificationActionsBackground = Color3.fromRGB(220, 235, 220),
-
-			TabBackground = Color3.fromRGB(215, 235, 215),
-			TabStroke = Color3.fromRGB(190, 210, 190),
-			TabBackgroundSelected = Color3.fromRGB(245, 255, 245),
-			TabTextColor = Color3.fromRGB(50, 80, 50),
-			SelectedTabTextColor = Color3.fromRGB(20, 60, 20),
-
-			ElementBackground = Color3.fromRGB(225, 240, 225),
-			ElementBackgroundHover = Color3.fromRGB(210, 225, 210),
-			SecondaryElementBackground = Color3.fromRGB(235, 245, 235), 
-			ElementStroke = Color3.fromRGB(180, 200, 180),
-			SecondaryElementStroke = Color3.fromRGB(180, 200, 180),
-
-			SliderBackground = Color3.fromRGB(90, 160, 90),
-			SliderProgress = Color3.fromRGB(70, 130, 70),
-			SliderStroke = Color3.fromRGB(100, 180, 100),
-
-			ToggleBackground = Color3.fromRGB(215, 235, 215),
-			ToggleEnabled = Color3.fromRGB(60, 130, 60),
-			ToggleDisabled = Color3.fromRGB(150, 175, 150),
-			ToggleEnabledStroke = Color3.fromRGB(80, 150, 80),
-			ToggleDisabledStroke = Color3.fromRGB(130, 150, 130),
-			ToggleEnabledOuterStroke = Color3.fromRGB(100, 160, 100),
-			ToggleDisabledOuterStroke = Color3.fromRGB(160, 180, 160),
-
-			DropdownSelected = Color3.fromRGB(225, 240, 225),
-			DropdownUnselected = Color3.fromRGB(210, 225, 210),
-
-			InputBackground = Color3.fromRGB(235, 245, 235),
-			InputStroke = Color3.fromRGB(180, 200, 180),
-			PlaceholderColor = Color3.fromRGB(120, 140, 120)
-		},
-
-		Bloom = {
-			TextColor = Color3.fromRGB(60, 40, 50),
-
-			Background = Color3.fromRGB(255, 240, 245),
-			Topbar = Color3.fromRGB(250, 220, 225),
-			Shadow = Color3.fromRGB(230, 190, 195),
-
-			NotificationBackground = Color3.fromRGB(255, 235, 240),
-			NotificationActionsBackground = Color3.fromRGB(245, 215, 225),
-
-			TabBackground = Color3.fromRGB(240, 210, 220),
-			TabStroke = Color3.fromRGB(230, 200, 210),
-			TabBackgroundSelected = Color3.fromRGB(255, 225, 235),
-			TabTextColor = Color3.fromRGB(80, 40, 60),
-			SelectedTabTextColor = Color3.fromRGB(50, 30, 50),
-
-			ElementBackground = Color3.fromRGB(255, 235, 240),
-			ElementBackgroundHover = Color3.fromRGB(245, 220, 230),
-			SecondaryElementBackground = Color3.fromRGB(255, 235, 240), 
-			ElementStroke = Color3.fromRGB(230, 200, 210),
-			SecondaryElementStroke = Color3.fromRGB(230, 200, 210),
-
-			SliderBackground = Color3.fromRGB(240, 130, 160),
-			SliderProgress = Color3.fromRGB(250, 160, 180),
-			SliderStroke = Color3.fromRGB(255, 180, 200),
-
-			ToggleBackground = Color3.fromRGB(240, 210, 220),
-			ToggleEnabled = Color3.fromRGB(255, 140, 170),
-			ToggleDisabled = Color3.fromRGB(200, 180, 185),
-			ToggleEnabledStroke = Color3.fromRGB(250, 160, 190),
-			ToggleDisabledStroke = Color3.fromRGB(210, 180, 190),
-			ToggleEnabledOuterStroke = Color3.fromRGB(220, 160, 180),
-			ToggleDisabledOuterStroke = Color3.fromRGB(190, 170, 180),
-
-			DropdownSelected = Color3.fromRGB(250, 220, 225),
-			DropdownUnselected = Color3.fromRGB(240, 210, 220),
-
-			InputBackground = Color3.fromRGB(255, 235, 240),
-			InputStroke = Color3.fromRGB(220, 190, 200),
-			PlaceholderColor = Color3.fromRGB(170, 130, 140)
-		},
-
-		DarkBlue = {
-			TextColor = Color3.fromRGB(230, 230, 230),
-
-			Background = Color3.fromRGB(20, 25, 30),
-			Topbar = Color3.fromRGB(30, 35, 40),
-			Shadow = Color3.fromRGB(15, 20, 25),
-
-			NotificationBackground = Color3.fromRGB(25, 30, 35),
-			NotificationActionsBackground = Color3.fromRGB(45, 50, 55),
-
-			TabBackground = Color3.fromRGB(35, 40, 45),
-			TabStroke = Color3.fromRGB(45, 50, 60),
-			TabBackgroundSelected = Color3.fromRGB(40, 70, 100),
-			TabTextColor = Color3.fromRGB(200, 200, 200),
-			SelectedTabTextColor = Color3.fromRGB(255, 255, 255),
-
-			ElementBackground = Color3.fromRGB(30, 35, 40),
-			ElementBackgroundHover = Color3.fromRGB(40, 45, 50),
-			SecondaryElementBackground = Color3.fromRGB(35, 40, 45), 
-			ElementStroke = Color3.fromRGB(45, 50, 60),
-			SecondaryElementStroke = Color3.fromRGB(40, 45, 55),
-
-			SliderBackground = Color3.fromRGB(0, 90, 180),
-			SliderProgress = Color3.fromRGB(0, 120, 210),
-			SliderStroke = Color3.fromRGB(0, 150, 240),
-
-			ToggleBackground = Color3.fromRGB(35, 40, 45),
-			ToggleEnabled = Color3.fromRGB(0, 120, 210),
-			ToggleDisabled = Color3.fromRGB(70, 70, 80),
-			ToggleEnabledStroke = Color3.fromRGB(0, 150, 240),
-			ToggleDisabledStroke = Color3.fromRGB(75, 75, 85),
-			ToggleEnabledOuterStroke = Color3.fromRGB(20, 100, 180), 
-			ToggleDisabledOuterStroke = Color3.fromRGB(55, 55, 65),
-
-			DropdownSelected = Color3.fromRGB(30, 70, 90),
-			DropdownUnselected = Color3.fromRGB(25, 30, 35),
-
-			InputBackground = Color3.fromRGB(25, 30, 35),
-			InputStroke = Color3.fromRGB(45, 50, 60), 
-			PlaceholderColor = Color3.fromRGB(150, 150, 160)
-		},
-
-		Serenity = {
-			TextColor = Color3.fromRGB(50, 55, 60),
-			Background = Color3.fromRGB(240, 245, 250),
-			Topbar = Color3.fromRGB(215, 225, 235),
-			Shadow = Color3.fromRGB(200, 210, 220),
-
-			NotificationBackground = Color3.fromRGB(210, 220, 230),
-			NotificationActionsBackground = Color3.fromRGB(225, 230, 240),
-
-			TabBackground = Color3.fromRGB(200, 210, 220),
-			TabStroke = Color3.fromRGB(180, 190, 200),
-			TabBackgroundSelected = Color3.fromRGB(175, 185, 200),
-			TabTextColor = Color3.fromRGB(50, 55, 60),
-			SelectedTabTextColor = Color3.fromRGB(30, 35, 40),
-
-			ElementBackground = Color3.fromRGB(210, 220, 230),
-			ElementBackgroundHover = Color3.fromRGB(220, 230, 240),
-			SecondaryElementBackground = Color3.fromRGB(200, 210, 220),
-			ElementStroke = Color3.fromRGB(190, 200, 210),
-			SecondaryElementStroke = Color3.fromRGB(180, 190, 200),
-
-			SliderBackground = Color3.fromRGB(200, 220, 235),  -- Lighter shade
-			SliderProgress = Color3.fromRGB(70, 130, 180),
-			SliderStroke = Color3.fromRGB(150, 180, 220),
-
-			ToggleBackground = Color3.fromRGB(210, 220, 230),
-			ToggleEnabled = Color3.fromRGB(70, 160, 210),
-			ToggleDisabled = Color3.fromRGB(180, 180, 180),
-			ToggleEnabledStroke = Color3.fromRGB(60, 150, 200),
-			ToggleDisabledStroke = Color3.fromRGB(140, 140, 140),
-			ToggleEnabledOuterStroke = Color3.fromRGB(100, 120, 140),
-			ToggleDisabledOuterStroke = Color3.fromRGB(120, 120, 130),
-
-			DropdownSelected = Color3.fromRGB(220, 230, 240),
-			DropdownUnselected = Color3.fromRGB(200, 210, 220),
-
-			InputBackground = Color3.fromRGB(220, 230, 240),
-			InputStroke = Color3.fromRGB(180, 190, 200),
-			PlaceholderColor = Color3.fromRGB(150, 150, 150)
-		},
-	}
-}
-
-
-
-
--- Interface Management
-
-local RayfieldAssetId = customAssetId or 10804731440
-local Rayfield = useStudio and script.Parent:FindFirstChild('Rayfield') or game:GetObjects("rbxassetid://"..RayfieldAssetId)[1]
-local buildAttempts = 0
-local correctBuild = false
-local warned
-local globalLoaded
-local rayfieldDestroyed = false -- True when RayfieldLibrary:Destroy() is called
-
-repeat
-	if Rayfield:FindFirstChild('Build') and Rayfield.Build.Value == InterfaceBuild then
-		correctBuild = true
-		break
-	end
-
-	correctBuild = false
-
-	if not warned then
-		warn('Rayfield | Build Mismatch')
-		print('!NOLIN may encounter issues as you are running an incompatible interface version ('.. ((Rayfield:FindFirstChild('Build') and Rayfield.Build.Value) or 'No Build') ..').\n\nThis version of Rayfield is intended for interface build '..InterfaceBuild..'.')
-		warned = true
-	end
-
-	local toDestroy
-	toDestroy, Rayfield = Rayfield, useStudio and script.Parent:FindFirstChild('Rayfield') or game:GetObjects("rbxassetid://"..RayfieldAssetId)[1]
-	if toDestroy and not useStudio then toDestroy:Destroy() end
-
-	buildAttempts = buildAttempts + 1
-until buildAttempts >= 2
-
-Rayfield.Enabled = false
-
-if gethui then
-	Rayfield.Parent = gethui()
-elseif syn and syn.protect_gui then 
-	syn.protect_gui(Rayfield)
-	Rayfield.Parent = CoreGui
-elseif not useStudio and CoreGui:FindFirstChild("RobloxGui") then
-	Rayfield.Parent = CoreGui:FindFirstChild("RobloxGui")
-elseif not useStudio then
-	Rayfield.Parent = CoreGui
-end
-
-if gethui then
-	for _, Interface in ipairs(gethui():GetChildren()) do
-		if Interface.Name == !NOLIN.Name and Interface ~= !NOLIN then
-			Interface.Enabled = false
-			Interface.Name = "!NOLIN-Old"
-		end
-	end
-elseif not useStudio then
-	for _, Interface in ipairs(CoreGui:GetChildren()) do
-		if Interface.Name == !NOLIN.Name and Interface ~= !NOLIN then
-			Interface.Enabled = false
-			Interface.Name = "!NOLIN-Old"
-		end
-	end
-end
-
-if secureMode and not customAssetId then
-	secureNotify("default_asset", "Secure Mode", "You are using the default !NOLIN asset ID. Set RAYFIELD_ASSET_ID to a custom upload to avoid detection.")
-end
-
-do
-	local AssetPath = RayfieldFolder.."/Assets"
-	local AssetBaseURL = "https://github.com/SiriusSoftwareLtd/Rayfield/blob/main/assets/"
-
-	local assetFiles = {
-		["111263549366178"] = AssetBaseURL.."111263549366178.png?raw=true",
-		["77891951053543"] = AssetBaseURL.."77891951053543.png?raw=true",
-		["78137979054938"] = AssetBaseURL.."78137979054938.png?raw=true",
-		["80503127983237"] = AssetBaseURL.."80503127983237.png?raw=true",
-		["10137832201"] = AssetBaseURL.."10137832201.png?raw=true",
-		["10137941941"] = AssetBaseURL.."10137941941.png?raw=true",
-		["11036884234"] = AssetBaseURL.."11036884234.png?raw=true",
-		["11413591840"] = AssetBaseURL.."11413591840.png?raw=true",
-		["11745872910"] = AssetBaseURL.."11745872910.png?raw=true",
-		["12577727209"] = AssetBaseURL.."12577727209.png?raw=true",
-		["18458939117"] = AssetBaseURL.."18458939117.png?raw=true",
-		["3259050989"] = AssetBaseURL.."3259050989.png?raw=true",
-		["3523728077"] = AssetBaseURL.."3523728077.png?raw=true",
-		["3602733521"] = AssetBaseURL.."3602733521.png?raw=true",
-		["IconChevronTopMedium"] = AssetBaseURL.."IconChevronTopMedium.png?raw=true",
-		["4483362458"] = AssetBaseURL.."4483362458.png?raw=true",
-		["5587865193"] = AssetBaseURL.."5587865193.png?raw=true",
-		["IconMagnifyingGlass2"] = AssetBaseURL.."IconMagnifyingGlass2.png?raw=true",
-	}
-
-	for id, _ in assetFiles do
-		customAssets[tostring(id)] = ""
-	end
-
-	local hasCustomAsset = type(getcustomasset) == "function"
-	local hasFilesystem = type(writefile) == "function" and type(makefolder) == "function" and type(isfile) == "function" and type(isfolder) == "function"
-
-	if hasCustomAsset and hasFilesystem then
-		local ok, err = pcall(function()
-			ensureFolder(RayfieldFolder)
-			ensureFolder(AssetPath)
-
-			-- skip ids we've already tried so a dead asset can't loop the loader forever
-			local attempted = {}
-			local function nextToFetch()
-				for id, _ in assetFiles do
-					if not attempted[id] and not isfile(AssetPath.."/"..tostring(id)..".png") then
-						return id
-					end
-				end
-				return nil
-			end
-
-			if nextToFetch() then
-				task.spawn(function()
-					while true do
-						local id = nextToFetch()
-						if not id then break end
-						-- a failed request can hand back a nil/empty Body — never pass that to writefile
-						local ok, res = pcall(requestFunc, {Url = assetFiles[id], Method = "GET"})
-						if ok and type(res) == "table" and type(res.Body) == "string" and #res.Body > 0 then
-							pcall(writefile, AssetPath.."/"..tostring(id)..".png", res.Body)
-						end
-						-- mark after the attempt so the poll waits for real downloads but still skips a dead asset
-						attempted[id] = true
-						task.wait()
-					end
-				end)
-
-				while nextToFetch() do
-					task.wait(0.1)
-				end
-			end
-
-			for id, _ in assetFiles do
-				local success, asset = pcall(getcustomasset, AssetPath.."/"..tostring(id)..".png")
-				if success then
-					customAssets[tostring(id)] = asset
-				else
-					warn("Rayfield | Failed to load custom asset: "..tostring(id).." - "..tostring(asset))
-				end
-			end
-		end)
-
-		if not ok then
-			warn("!NOLIN | Failed to load custom assets: "..tostring(err))
-			secureNotify("asset_load_fail", "!NOLIN", "Failed to load custom assets. UI images may not display correctly.")
-		end
-	else
-		secureNotify("no_getcustomasset", "!NOLIN", "Your executor does not support getcustomasset. Some UI images may not render correctly.")
-	end
-
-
-	Rayfield.Main.Shadow.Image.Image = customAssets[tostring(5587865193)]
-	Rayfield.Main.Topbar.Hide.Image = customAssets[tostring(10137832201)]
-	Rayfield.Main.Topbar.ChangeSize.Image = customAssets[tostring(10137941941)]
-	Rayfield.Main.Topbar.Settings.Image = customAssets[tostring(80503127983237)]
-	Rayfield.Main.Topbar.Icon.Image = customAssets[tostring(78137979054938)]
-	Rayfield.Main.Topbar.Search.Image = customAssets["IconMagnifyingGlass2"]
-	Rayfield.Main.Topbar.Search.ImageRectOffset = Vector2.new(0, 0)
-	Rayfield.Main.Topbar.Search.ImageRectSize = Vector2.new(0, 0)
-	Rayfield.Main.Elements.Template.Toggle.Switch.Shadow.Image = customAssets[tostring(3602733521)]
-	Rayfield.Main.Elements.Template.Slider.Main.Shadow.Image = customAssets[tostring(3602733521)]
-	Rayfield.Main.Elements.Template.Dropdown.Toggle.Image = customAssets["IconChevronTopMedium"]
-	Rayfield.Main.Elements.Template.Dropdown.Toggle.ImageRectOffset = Vector2.new(0, 0)
-	Rayfield.Main.Elements.Template.Dropdown.Toggle.ImageRectSize = Vector2.new(0, 0)
-	Rayfield.Main.Elements.Template.Label.Icon.Image = customAssets[tostring(11745872910)]
-	Rayfield.Main.Elements.Template.ColorPicker.CPBackground.MainCP.Image = customAssets[tostring(11413591840)]
-	Rayfield.Main.Elements.Template.ColorPicker.CPBackground.MainCP.MainPoint.Image = customAssets[tostring(3259050989)]
-	Rayfield.Main.Elements.Template.ColorPicker.ColorSlider.SliderPoint.Image = customAssets[tostring(3259050989)]
-	Rayfield.Main.TabList.Template.Image.Image = customAssets[tostring(4483362458)]
-	Rayfield.Main.Search.Search.Image = customAssets[tostring(18458939117)]
-	Rayfield.Main.Search.Shadow.Image = customAssets[tostring(5587865193)]
-	Rayfield.Notifications.Template.Icon.Image = customAssets[tostring(77891951053543)]
-	Rayfield.Notifications.Template.Shadow.Image = customAssets[tostring(3523728077)]
-	Rayfield.Loading.Banner.Image = customAssets[tostring(111263549366178)]
-
-end -- custom asset block
-
-local minSize = Vector2.new(1024, 768)
-local useMobileSizing
-
-if Rayfield.AbsoluteSize.X < minSize.X and Rayfield.AbsoluteSize.Y < minSize.Y then
-	useMobileSizing = true
-end
-
-local useMobilePrompt = false
-if UserInputService.TouchEnabled then
-	useMobilePrompt = true
-end
-
-
--- Object Variables
-
-local Main = Rayfield.Main
-local MPrompt = Rayfield:FindFirstChild('Prompt')
-local Topbar = Main.Topbar
-local Elements = Main.Elements
-local LoadingFrame = Main.LoadingFrame
-local TabList = Main.TabList
-local dragBar = Rayfield:FindFirstChild('Drag')
-local dragInteract = dragBar and dragBar.Interact or nil
-local dragBarCosmetic = dragBar and dragBar.Drag or nil
-
-local dragOffset = 255
-local dragOffsetMobile = 150
-
-Rayfield.DisplayOrder = 100
-LoadingFrame.Version.Text = Release
-
--- Thanks to Latte Softworks for the Lucide integration for Roblox
-local Icons = useStudio and require(script.Parent.icons) or loadWithTimeout('https://raw.githubusercontent.com/SiriusSoftwareLtd/Rayfield/refs/heads/main/icons.lua')
--- Variables
-
-local CFileName = nil
-local CEnabled = false
-local Minimised = false
-local Hidden = false
-local Debounce = false
-local searchOpen = false
-local Notifications = Rayfield.Notifications
-local keybindConnections = {} -- For storing keybind connections to disconnect when Rayfield is destroyed
-
-local SelectedTheme = RayfieldLibrary.Theme.Default
-
-local function ChangeTheme(Theme)
-	if typeof(Theme) == 'string' then
-		SelectedTheme = RayfieldLibrary.Theme[Theme]
-	elseif typeof(Theme) == 'table' then
-		SelectedTheme = Theme
-	end
-
-	Rayfield.Main.BackgroundColor3 = SelectedTheme.Background
-	Rayfield.Main.Topbar.BackgroundColor3 = SelectedTheme.Topbar
-	Rayfield.Main.Topbar.CornerRepair.BackgroundColor3 = SelectedTheme.Topbar
-	Rayfield.Main.Shadow.Image.ImageColor3 = SelectedTheme.Shadow
-
-	Rayfield.Main.Topbar.ChangeSize.ImageColor3 = SelectedTheme.TextColor
-	Rayfield.Main.Topbar.Hide.ImageColor3 = SelectedTheme.TextColor
-	Rayfield.Main.Topbar.Search.ImageColor3 = SelectedTheme.TextColor
-	if Topbar:FindFirstChild('Settings') then
-		Rayfield.Main.Topbar.Settings.ImageColor3 = SelectedTheme.TextColor
-		Rayfield.Main.Topbar.Divider.BackgroundColor3 = SelectedTheme.ElementStroke
-	end
-
-	Main.Search.BackgroundColor3 = SelectedTheme.TextColor
-	Main.Search.Shadow.ImageColor3 = SelectedTheme.TextColor
-	Main.Search.Search.ImageColor3 = SelectedTheme.TextColor
-	Main.Search.Input.PlaceholderColor3 = SelectedTheme.TextColor
-	Main.Search.UIStroke.Color = SelectedTheme.SecondaryElementStroke
-
-	if Main:FindFirstChild('Notice') then
-		Main.Notice.BackgroundColor3 = SelectedTheme.Background
-	end
-
-	for _, text in ipairs(Rayfield:GetDescendants()) do
-		if text.Parent.Parent ~= Notifications then
-			if text:IsA('TextLabel') or text:IsA('TextBox') then text.TextColor3 = SelectedTheme.TextColor end
-		end
-	end
-
-	for _, TabPage in ipairs(Elements:GetChildren()) do
-		for _, Element in ipairs(TabPage:GetChildren()) do
-			if Element.ClassName == "Frame" and Element.Name ~= "Placeholder" and Element.Name ~= "SectionSpacing" and Element.Name ~= "Divider" and Element.Name ~= "SectionTitle" and Element.Name ~= "SearchTitle-fsefsefesfsefesfesfThanks" then
-				Element.BackgroundColor3 = SelectedTheme.ElementBackground
-				Element.UIStroke.Color = SelectedTheme.ElementStroke
-			end
-		end
-	end
-end
-
-local function getIcon(name : string): {id: number, imageRectSize: Vector2, imageRectOffset: Vector2}
-	if not Icons then
-		warn("Lucide Icons: Cannot use icons as icons library is not loaded")
-		return
-	end
-	name = string.match(string.lower(name), "^%s*(.*)%s*$") :: string
-	local sizedicons = Icons['48px']
-	local r = sizedicons[name]
-	if not r then
-		error("Lucide Icons: Failed to find icon by the name of \"" .. name .. "\"", 2)
-	end
-
-	local rirs = r[2]
-	local riro = r[3]
-
-	if type(r[1]) ~= "number" or type(rirs) ~= "table" or type(riro) ~= "table" then
-		error("Lucide Icons: Internal error: Invalid auto-generated asset entry")
-	end
-
-	local irs = Vector2.new(rirs[1], rirs[2])
-	local iro = Vector2.new(riro[1], riro[2])
-
-	local asset = {
-		id = r[1],
-		imageRectSize = irs,
-		imageRectOffset = iro,
-	}
-
-	return asset
-end
-local function getAssetUri(id: any): string
-	local assetUri = ""
-	if type(id) == "number" then
-		assetUri = "rbxassetid://" .. id
-	elseif type(id) == "string" and not Icons then
-		warn("Rayfield | Cannot use Lucide icons as icons library is not loaded")
-	else
-		warn("Rayfield | The icon argument must either be an icon ID (number) or a Lucide icon name (string)")
-	end
-	return assetUri
-end
-
-local function isCustomAsset(value)
-	return type(value) == "string" and (string.find(value, "rbxasset://") == 1 or string.find(value, "rbxthumb://") == 1)
-end
-
-local function resolveIcon(icon)
-	if not icon or icon == 0 then
-		return "", nil, nil
-	end
-
-	if isCustomAsset(icon) then
-		return icon, nil, nil
-	end
-
-	if secureMode then
-		secureNotify("icon_blocked", "Secure Mode", "Element icons using asset IDs or Lucide names are blocked. Use getcustomasset() for icons to stay undetected.")
-		return "", nil, nil
-	end
-
-	if typeof(icon) == "string" and Icons then
-		local asset = getIcon(icon)
-		return "rbxassetid://" .. asset.id, asset.imageRectOffset, asset.imageRectSize
-	else
-		return getAssetUri(icon), nil, nil
-	end
-end
-
-local function makeDraggable(object, dragObject, enableTaptic, tapticOffset)
-	local dragging = false
-	local relative = nil
-
-	local offset = Vector2.zero
-	local screenGui = object:FindFirstAncestorWhichIsA("ScreenGui")
-	if screenGui and screenGui.IgnoreGuiInset then
-		offset += getService('GuiService'):GetGuiInset()
-	end
-
-	local function connectFunctions()
-		if dragBar and enableTaptic then
-			dragBar.MouseEnter:Connect(function()
-				if not dragging and not Hidden then
-					TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {BackgroundTransparency = 0.5, Size = UDim2.new(0, 120, 0, 4)}):Play()
-				end
-			end)
-
-			dragBar.MouseLeave:Connect(function()
-				if not dragging and not Hidden then
-					TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {BackgroundTransparency = 0.7, Size = UDim2.new(0, 100, 0, 4)}):Play()
-				end
-			end)
-		end
-	end
-
-	connectFunctions()
-
-	dragObject.InputBegan:Connect(function(input, processed)
-		if processed then return end
-
-		local inputType = input.UserInputType.Name
-		if inputType == "MouseButton1" or inputType == "Touch" then
-			dragging = true
-
-			relative = object.AbsolutePosition + object.AbsoluteSize * object.AnchorPoint - UserInputService:GetMouseLocation()
-			if enableTaptic and not Hidden then
-				TweenService:Create(dragBarCosmetic, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, 110, 0, 4), BackgroundTransparency = 0}):Play()
-			end
-		end
-	end)
-
-	local inputEnded = UserInputService.InputEnded:Connect(function(input)
-		if not dragging then return end
-
-		local inputType = input.UserInputType.Name
-		if inputType == "MouseButton1" or inputType == "Touch" then
-			dragging = false
-
-			if enableTaptic and not Hidden then
-				TweenService:Create(dragBarCosmetic, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, 100, 0, 4), BackgroundTransparency = 0.7}):Play()
-			end
-		end
-	end)
-
-	local renderStepped = RunService.RenderStepped:Connect(function()
-		if dragging and not Hidden then
-			local position = UserInputService:GetMouseLocation() + relative + offset
-			if enableTaptic and tapticOffset then
-				TweenService:Create(object, TweenInfo.new(0.4, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Position = UDim2.fromOffset(position.X, position.Y)}):Play()
-				TweenService:Create(dragObject.Parent, TweenInfo.new(0.05, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Position = UDim2.fromOffset(position.X, position.Y + ((useMobileSizing and tapticOffset[2]) or tapticOffset[1]))}):Play()
-			else
-				if dragBar and tapticOffset then
-					dragBar.Position = UDim2.fromOffset(position.X, position.Y + ((useMobileSizing and tapticOffset[2]) or tapticOffset[1]))
-				end
-				object.Position = UDim2.fromOffset(position.X, position.Y)
-			end
-		end
-	end)
-
-	object.Destroying:Connect(function()
-		if inputEnded then inputEnded:Disconnect() end
-		if renderStepped then renderStepped:Disconnect() end
-	end)
-end
-
-
-local function PackColor(Color)
-	return {R = Color.R * 255, G = Color.G * 255, B = Color.B * 255}
-end    
-
-local function UnpackColor(Color)
-	return Color3.fromRGB(Color.R, Color.G, Color.B)
-end
-
-local function LoadConfiguration(Configuration)
-	local success, Data = pcall(function() return HttpService:JSONDecode(Configuration) end)
-	local changed
-
-	if not success then warn('Rayfield had an issue decoding the configuration file, please try delete the file and reopen Rayfield.') return end
-
-	-- Iterate through current UI elements' flags
-	for FlagName, Flag in pairs(RayfieldLibrary.Flags) do
-		local FlagValue = Data[FlagName]
-
-		if (typeof(FlagValue) == 'boolean' and FlagValue == false) or FlagValue then
-			task.spawn(function()
-				if Flag.Type == "ColorPicker" then
-					changed = true
-					Flag:Set(UnpackColor(FlagValue))
-				else
-					if (Flag.CurrentValue or Flag.CurrentKeybind or Flag.CurrentOption or Flag.Color) ~= FlagValue then 
-						changed = true
-						Flag:Set(FlagValue) 	
-					end
-				end
-			end)
-		else
-			warn("Rayfield | Unable to find '"..FlagName.. "' in the save file.")
-			print("The error above may not be an issue if new elements have been added or not been set values.")
-			--RayfieldLibrary:Notify({Title = "Rayfield Flags", Content = "Rayfield was unable to find '"..FlagName.. "' in the save file. Check sirius.menu/discord for help.", Image = 3944688398})
-		end
-	end
-
-	return changed
-end
-
-local function SaveConfiguration()
-	if not CEnabled or not globalLoaded then return end
-
-	if debugX then
-		print('Saving')
-	end
-
-	local Data = {}
-	for i, v in pairs(RayfieldLibrary.Flags) do
-		if v.Type == "ColorPicker" then
-			Data[i] = PackColor(v.Color)
-		else
-			if typeof(v.CurrentValue) == 'boolean' then
-				if v.CurrentValue == false then
-					Data[i] = false
-				else
-					Data[i] = v.CurrentValue or v.CurrentKeybind or v.CurrentOption or v.Color
-				end
-			else
-				Data[i] = v.CurrentValue or v.CurrentKeybind or v.CurrentOption or v.Color
-			end
-		end
-	end
-
-	if useStudio then
-		if script.Parent:FindFirstChild('configuration') then script.Parent.configuration:Destroy() end
-
-		local ScreenGui = Instance.new("ScreenGui")
-		ScreenGui.Parent = script.Parent
-		ScreenGui.Name = 'configuration'
-
-		local TextBox = Instance.new("TextBox")
-		TextBox.Parent = ScreenGui
-		TextBox.Size = UDim2.new(0, 800, 0, 50)
-		TextBox.AnchorPoint = Vector2.new(0.5, 0)
-		TextBox.Position = UDim2.new(0.5, 0, 0, 30)
-		TextBox.Text = HttpService:JSONEncode(Data)
-		TextBox.ClearTextOnFocus = false
-	end
-
-	if debugX then
-		warn(HttpService:JSONEncode(Data))
-	end
-
-
-	callSafely(writefile, ConfigurationFolder .. "/" .. CFileName .. ConfigurationExtension, tostring(HttpService:JSONEncode(Data)))
-end
-
-function RayfieldLibrary:Notify(data) -- action e.g open messages
-	task.spawn(function()
-
-		-- Notification Object Creation
-		local newNotification = Notifications.Template:Clone()
-		newNotification.Name = data.Title or 'No Title Provided'
-		newNotification.Parent = Notifications
-		newNotification.LayoutOrder = #Notifications:GetChildren()
-		newNotification.Visible = false
-
-		-- Set Data
-		newNotification.Title.Text = data.Title or "Unknown Title"
-		newNotification.Description.Text = data.Content or "Unknown Content"
-
-		if data.Image then
-			local img, rectOffset, rectSize = resolveIcon(data.Image)
-			newNotification.Icon.Image = img
-			if rectOffset then newNotification.Icon.ImageRectOffset = rectOffset end
-			if rectSize then newNotification.Icon.ImageRectSize = rectSize end
-		else
-			newNotification.Icon.Image = ""
-		end
-
-		-- Set initial transparency values
-
-		newNotification.Title.TextColor3 = SelectedTheme.TextColor
-		newNotification.Description.TextColor3 = SelectedTheme.TextColor
-		newNotification.BackgroundColor3 = SelectedTheme.Background
-		newNotification.UIStroke.Color = SelectedTheme.TextColor
-		newNotification.Icon.ImageColor3 = SelectedTheme.TextColor
-
-		newNotification.BackgroundTransparency = 1
-		newNotification.Title.TextTransparency = 1
-		newNotification.Description.TextTransparency = 1
-		newNotification.UIStroke.Transparency = 1
-		newNotification.Shadow.ImageTransparency = 1
-		newNotification.Size = UDim2.new(1, 0, 0, 800)
-		newNotification.Icon.ImageTransparency = 1
-		newNotification.Icon.BackgroundTransparency = 1
-
-		task.wait()
-
-		newNotification.Visible = true
-
-		if data.Actions then
-			warn('Rayfield | Not seeing your actions in notifications?')
-			print("Notification Actions are being sunset for now, keep up to date on when they're back in the discord. (sirius.menu/discord)")
-		end
-
-		-- Calculate textbounds and set initial values
-		local bounds = {newNotification.Title.TextBounds.Y, newNotification.Description.TextBounds.Y}
-		newNotification.Size = UDim2.new(1, -60, 0, -Notifications:FindFirstChild("UIListLayout").Padding.Offset)
-
-		newNotification.Icon.Size = UDim2.new(0, 32, 0, 32)
-		newNotification.Icon.Position = UDim2.new(0, 20, 0.5, 0)
-
-		TweenService:Create(newNotification, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, 0, 0, math.max(bounds[1] + bounds[2] + 31, 60))}):Play()
-
-		task.wait(0.15)
-		TweenService:Create(newNotification, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.45}):Play()
-		TweenService:Create(newNotification.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-
-		task.wait(0.05)
-
-		TweenService:Create(newNotification.Icon, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 0}):Play()
-
-		task.wait(0.05)
-		TweenService:Create(newNotification.Description, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 0.35}):Play()
-		TweenService:Create(newNotification.UIStroke, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {Transparency = 0.95}):Play()
-		TweenService:Create(newNotification.Shadow, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 0.82}):Play()
-
-		local waitDuration = math.min(math.max((#newNotification.Description.Text * 0.1) + 2.5, 3), 10)
-		task.wait(data.Duration or waitDuration)
-
-		newNotification.Icon.Visible = false
-		TweenService:Create(newNotification, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-		TweenService:Create(newNotification.UIStroke, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
-		TweenService:Create(newNotification.Shadow, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
-		TweenService:Create(newNotification.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-		TweenService:Create(newNotification.Description, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-
-		TweenService:Create(newNotification, TweenInfo.new(1, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, -90, 0, 0)}):Play()
-
-		task.wait(1)
-
-		TweenService:Create(newNotification, TweenInfo.new(1, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, -90, 0, -Notifications:FindFirstChild("UIListLayout").Padding.Offset)}):Play()
-
-		newNotification.Visible = false
-		newNotification:Destroy()
-	end)
-end
-
-local function openSearch()
-	searchOpen = true
-
-	Main.Search.BackgroundTransparency = 1
-	Main.Search.Shadow.ImageTransparency = 1
-	Main.Search.Input.TextTransparency = 1
-	Main.Search.Search.ImageTransparency = 1
-	Main.Search.UIStroke.Transparency = 1
-	Main.Search.Size = UDim2.new(1, 0, 0, 80)
-	Main.Search.Position = UDim2.new(0.5, 0, 0, 70)
-
-	Main.Search.Input.Interactable = true
-
-	Main.Search.Visible = true
-
-	for _, tabbtn in ipairs(TabList:GetChildren()) do
-		if tabbtn.ClassName == "Frame" and tabbtn.Name ~= "Placeholder" then
-			tabbtn.Interact.Visible = false
-			TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-			TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-			TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
-			TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
-		end
-	end
-
-	Main.Search.Input:CaptureFocus()
-	TweenService:Create(Main.Search.Shadow, TweenInfo.new(0.05, Enum.EasingStyle.Quint), {ImageTransparency = 0.95}):Play()
-	TweenService:Create(Main.Search, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Position = UDim2.new(0.5, 0, 0, 57), BackgroundTransparency = 0.9}):Play()
-	TweenService:Create(Main.Search.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 0.8}):Play()
-	TweenService:Create(Main.Search.Input, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 0.2}):Play()
-	TweenService:Create(Main.Search.Search, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 0.5}):Play()
-	TweenService:Create(Main.Search, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, -35, 0, 35)}):Play()
-end
-
-local function closeSearch()
-	searchOpen = false
-
-	TweenService:Create(Main.Search, TweenInfo.new(0.35, Enum.EasingStyle.Quint), {BackgroundTransparency = 1, Size = UDim2.new(1, -55, 0, 30)}):Play()
-	TweenService:Create(Main.Search.Search, TweenInfo.new(0.15, Enum.EasingStyle.Quint), {ImageTransparency = 1}):Play()
-	TweenService:Create(Main.Search.Shadow, TweenInfo.new(0.15, Enum.EasingStyle.Quint), {ImageTransparency = 1}):Play()
-	TweenService:Create(Main.Search.UIStroke, TweenInfo.new(0.15, Enum.EasingStyle.Quint), {Transparency = 1}):Play()
-	TweenService:Create(Main.Search.Input, TweenInfo.new(0.15, Enum.EasingStyle.Quint), {TextTransparency = 1}):Play()
-
-	for _, tabbtn in ipairs(TabList:GetChildren()) do
-		if tabbtn.ClassName == "Frame" and tabbtn.Name ~= "Placeholder" then
-			tabbtn.Interact.Visible = true
-			if tostring(Elements.UIPageLayout.CurrentPage) == tabbtn.Title.Text then
-				TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-				TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 0}):Play()
-				TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-				TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
-			else
-				TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.7}):Play()
-				TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 0.2}):Play()
-				TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 0.2}):Play()
-				TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
-			end
-		end
-	end
-
-	Main.Search.Input.Text = ''
-	Main.Search.Input.Interactable = false
-end
-
--- Sets element visibility across all tab pages (used by Hide, Unhide, Maximise, Minimise)
-local function setElementsVisible(show)
-	for _, tab in ipairs(Elements:GetChildren()) do
-		if tab.Name ~= "Template" and tab.ClassName == "ScrollingFrame" and tab.Name ~= "Placeholder" then
-			for _, element in ipairs(tab:GetChildren()) do
-				if element.ClassName == "Frame" then
-					if element.Name ~= "SectionSpacing" and element.Name ~= "Placeholder" then
-						if element.Name == "SectionTitle" or element.Name == 'SearchTitle-fsefsefesfsefesfesfThanks' then
-							TweenService:Create(element.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = show and 0.4 or 1}):Play()
-						elseif element.Name == 'Divider' then
-							TweenService:Create(element.Divider, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = show and 0.85 or 1}):Play()
-						else
-							local bgTarget = element:GetAttribute("BackgroundTransparencyTarget") or 0
-							local strokeTarget = element:GetAttribute("UIStrokeTransparencyTarget") or 0
-							local titleTarget = element:GetAttribute("TitleTextTransparencyTarget") or 0
-							TweenService:Create(element, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = show and bgTarget or 1}):Play()
-							TweenService:Create(element.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = show and strokeTarget or 1}):Play()
-							TweenService:Create(element.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = show and titleTarget or 1}):Play()
-						end
-						for _, child in ipairs(element:GetChildren()) do
-							if child.ClassName == "Frame" or child.ClassName == "TextLabel" or child.ClassName == "TextBox" or child.ClassName == "ImageButton" or child.ClassName == "ImageLabel" then
-								child.Visible = show
-							end
-						end
-					end
-				end
-			end
-		end
-	end
-end
-
--- Sets tab button visibility (used by Hide, Unhide, Maximise, Minimise)
-local function setTabButtonsVisible(show)
-	for _, tabbtn in ipairs(TabList:GetChildren()) do
-		if tabbtn.ClassName == "Frame" and tabbtn.Name ~= "Placeholder" then
-			if show then
-				if tostring(Elements.UIPageLayout.CurrentPage) == tabbtn.Title.Text then
-					TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-					TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 0}):Play()
-					TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-					TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
-				else
-					TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.7}):Play()
-					TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 0.2}):Play()
-					TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 0.2}):Play()
-					TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
-				end
-			else
-				TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-				TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-				TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
-				TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
-			end
-		end
-	end
-end
-
-local function Hide(notify: boolean?)
-	if MPrompt then
-		MPrompt.Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-		MPrompt.Position = UDim2.new(0.5, 0, 0, -50)
-		MPrompt.Size = UDim2.new(0, 40, 0, 10)
-		MPrompt.BackgroundTransparency = 1
-		MPrompt.Title.TextTransparency = 1
-		MPrompt.Visible = true
-	end
-
-	task.spawn(closeSearch)
-
-	Debounce = true
-	if notify then
-		if useMobilePrompt then 
-			RayfieldLibrary:Notify({Title = "Interface Hidden", Content = "The interface has been hidden, you can unhide the interface by tapping 'Show'.", Duration = 7, Image = 4400697855})
-		else
-			RayfieldLibrary:Notify({Title = "Interface Hidden", Content = "The interface has been hidden, you can unhide the interface by tapping " .. tostring(getSetting("General", "rayfieldOpen")) .. ".", Duration = 7, Image = 4400697855})
-		end
-	end
-
-	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 470, 0, 0)}):Play()
-	TweenService:Create(Main.Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 470, 0, 45)}):Play()
-	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-	TweenService:Create(Main.Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-	TweenService:Create(Main.Topbar.Divider, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-	TweenService:Create(Main.Topbar.CornerRepair, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-	TweenService:Create(Main.Topbar.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-	TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
-	TweenService:Create(Topbar.UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
-	if dragBarCosmetic then
-		TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
-	end
-
-	if useMobilePrompt and MPrompt then
-		TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 120, 0, 30), Position = UDim2.new(0.5, 0, 0, 20), BackgroundTransparency = 0.3}):Play()
-		TweenService:Create(MPrompt.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0.3}):Play()
-	end
-
-	for _, TopbarButton in ipairs(Topbar:GetChildren()) do
-		if TopbarButton.ClassName == "ImageButton" then
-			TweenService:Create(TopbarButton, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
-		end
-	end
-
-	setTabButtonsVisible(false)
-
-	if dragInteract then dragInteract.Visible = false end
-
-	setElementsVisible(false)
-
-	task.wait(0.5)
-	Main.Visible = false
-	Debounce = false
-end
-
-local function Maximise()
-	Debounce = true
-	Topbar.ChangeSize.Image = customAssets[tostring(10137941941)]
-
-	TweenService:Create(Topbar.UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
-	TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 0.6}):Play()
-	TweenService:Create(Topbar.CornerRepair, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-	TweenService:Create(Topbar.Divider, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-	TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {BackgroundTransparency = 0.7}):Play()
-	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = useMobileSizing and UDim2.new(0, 500, 0, 275) or UDim2.new(0, 500, 0, 475)}):Play()
-	TweenService:Create(Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 500, 0, 45)}):Play()
-	TabList.Visible = true
-	task.wait(0.2)
-
-	Elements.Visible = true
-
-	setElementsVisible(true)
-
-	task.wait(0.1)
-
-	setTabButtonsVisible(true)
-
-	task.wait(0.5)
-	Debounce = false
-end
-
-
-local function Unhide()
-	Debounce = true
-	Main.Position = UDim2.new(0.5, 0, 0.5, 0)
-	Main.Visible = true
-	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = useMobileSizing and UDim2.new(0, 500, 0, 275) or UDim2.new(0, 500, 0, 475)}):Play()
-	TweenService:Create(Main.Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 500, 0, 45)}):Play()
-	TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0.6}):Play()
-	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-	TweenService:Create(Main.Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-	TweenService:Create(Main.Topbar.Divider, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-	TweenService:Create(Main.Topbar.CornerRepair, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-	TweenService:Create(Main.Topbar.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-
-	if MPrompt then
-		TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 40, 0, 10), Position = UDim2.new(0.5, 0, 0, -50), BackgroundTransparency = 1}):Play()
-		TweenService:Create(MPrompt.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-
-		task.spawn(function()
-			task.wait(0.5)
-			MPrompt.Visible = false
-		end)
-	end
-
-	if Minimised then
-		task.spawn(Maximise)
-	end
-
-	dragBar.Position = useMobileSizing and UDim2.new(0.5, 0, 0.5, dragOffsetMobile) or UDim2.new(0.5, 0, 0.5, dragOffset)
-
-	dragInteract.Visible = true
-
-	for _, TopbarButton in ipairs(Topbar:GetChildren()) do
-		if TopbarButton.ClassName == "ImageButton" then
-			if TopbarButton.Name == 'Icon' then
-				TweenService:Create(TopbarButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0}):Play()
-			else
-				TweenService:Create(TopbarButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0.8}):Play()
-			end
-
-		end
-	end
-
-	setTabButtonsVisible(true)
-
-	setElementsVisible(true)
-
-	TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {BackgroundTransparency = 0.5}):Play()
-
-	task.wait(0.5)
-	Minimised = false
-	Debounce = false
-end
-
-local function Minimise()
-	Debounce = true
-	Topbar.ChangeSize.Image = customAssets[tostring(11036884234)]
-
-	Topbar.UIStroke.Color = SelectedTheme.ElementStroke
-
-	task.spawn(closeSearch)
-
-	setTabButtonsVisible(false)
-
-	setElementsVisible(false)
-
-	TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
-	TweenService:Create(Topbar.UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
-	TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
-	TweenService:Create(Topbar.CornerRepair, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-	TweenService:Create(Topbar.Divider, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 495, 0, 45)}):Play()
-	TweenService:Create(Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 495, 0, 45)}):Play()
-
-	task.wait(0.3)
-
-	Elements.Visible = false
-	TabList.Visible = false
-
-	task.wait(0.2)
-	Debounce = false
-end
-
-local function saveSettings() -- Save settings to config file
-	local encoded
-	local success, err = pcall(function()
-		encoded = HttpService:JSONEncode(settingsTable)
-	end)
-
-	if success then
-		if useStudio then
-			if script.Parent['get.val'] then
-				script.Parent['get.val'].Value = encoded
-			end
-		end
-		callSafely(writefile, RayfieldFolder..'/settings'..ConfigurationExtension, encoded)
-	end
-end
-
-local function updateSetting(category: string, setting: string, value: any)
-	if not settingsInitialized then
-		return
-	end
-	settingsTable[category][setting].Value = value
-	overriddenSettings[category .. "." .. setting] = nil -- If user changes an overriden setting, remove the override
-	saveSettings()
-end
-
-local function createSettings(window)
-	if not (writefile and isfile and readfile and isfolder and makefolder) and not useStudio then
-		if Topbar['Settings'] then Topbar.Settings.Visible = false end
-		Topbar['Search'].Position = UDim2.new(1, -75, 0.5, 0)
-		warn('Can\'t create settings as no file-saving functionality is available.')
-		return
-	end
-
-	local newTab = window:CreateTab('Rayfield Settings', 0, true)
-
-	if TabList['Rayfield Settings'] then
-		TabList['Rayfield Settings'].LayoutOrder = 1000
-	end
-
-	if Elements['Rayfield Settings'] then
-		Elements['Rayfield Settings'].LayoutOrder = 1000
-	end
-
-	-- Create sections and elements
-	for categoryName, settingCategory in pairs(settingsTable) do
-		newTab:CreateSection(categoryName)
-
-		for settingName, setting in pairs(settingCategory) do
-			if setting.Type == 'input' then
-				setting.Element = newTab:CreateInput({
-					Name = setting.Name,
-					CurrentValue = setting.Value,
-					PlaceholderText = setting.Placeholder,
-					Ext = true,
-					RemoveTextAfterFocusLost = setting.ClearOnFocus,
-					Callback = function(Value)
-						updateSetting(categoryName, settingName, Value)
-					end,
-				})
-			elseif setting.Type == 'toggle' then
-				setting.Element = newTab:CreateToggle({
-					Name = setting.Name,
-					CurrentValue = setting.Value,
-					Ext = true,
-					Callback = function(Value)
-						updateSetting(categoryName, settingName, Value)
-					end,
-				})
-			elseif setting.Type == 'bind' then
-				setting.Element = newTab:CreateKeybind({
-					Name = setting.Name,
-					CurrentKeybind = setting.Value,
-					HoldToInteract = false,
-					Ext = true,
-					CallOnChange = true,
-					Callback = function(Value)
-						updateSetting(categoryName, settingName, Value)
-					end,
-				})
-			end
-		end
-	end
-
-	settingsCreated = true
-	loadSettings()
-	saveSettings()
-end
-
-local function fadeOutKeyUI(KeyMain)
-	TweenService:Create(KeyMain, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-	TweenService:Create(KeyMain, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 467, 0, 175)}):Play()
-	TweenService:Create(KeyMain.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
-	TweenService:Create(KeyMain.Title, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-	TweenService:Create(KeyMain.Subtitle, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-	TweenService:Create(KeyMain.KeyNote, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-	TweenService:Create(KeyMain.Input, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-	TweenService:Create(KeyMain.Input.UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
-	TweenService:Create(KeyMain.Input.InputBox, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-	TweenService:Create(KeyMain.NoteTitle, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-	TweenService:Create(KeyMain.NoteMessage, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-	TweenService:Create(KeyMain.Hide, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
-end
-
-function RayfieldLibrary:CreateWindow(Settings)
-	if Rayfield:FindFirstChild('Loading') then
-		if getgenv and not getgenv().rayfieldCached then
-			Rayfield.Enabled = true
-			Rayfield.Loading.Visible = true
-
-			task.wait(1.4)
-			Rayfield.Loading.Visible = false
-		end
-	end
-
-	if getgenv then getgenv().rayfieldCached = true end
-
-	if not correctBuild and not Settings.DisableBuildWarnings then
-		task.delay(3, 
-			function() 
-				RayfieldLibrary:Notify({Title = 'Build Mismatch', Content = 'Rayfield may encounter issues as you are running an incompatible interface version ('.. ((Rayfield:FindFirstChild('Build') and Rayfield.Build.Value) or 'No Build') ..').\n\nThis version of Rayfield is intended for interface build '..InterfaceBuild..'.\n\nTry rejoining and then run the script twice.', Image = 4335487866, Duration = 15})		
-			end)
-	end
-
-	if Settings.ToggleUIKeybind then -- Can either be a string or an Enum.KeyCode
-		local keybind = Settings.ToggleUIKeybind
-		if type(keybind) == "string" then
-			keybind = string.upper(keybind)
-			assert(pcall(function()
-				return Enum.KeyCode[keybind]
-			end), "ToggleUIKeybind must be a valid KeyCode")
-			overrideSetting("General", "rayfieldOpen", keybind)
-		elseif typeof(keybind) == "EnumItem" then
-			assert(keybind.EnumType == Enum.KeyCode, "ToggleUIKeybind must be a KeyCode enum")
-			overrideSetting("General", "rayfieldOpen", keybind.Name)
-		else
-			error("ToggleUIKeybind must be a string or KeyCode enum")
-		end
-	end
-
-	ensureFolder(RayfieldFolder)
-
-	local Passthrough = false
-	Topbar.Title.Text = Settings.Name
-
-	Main.Size = UDim2.new(0, 420, 0, 100)
-	Main.Visible = true
-	Main.BackgroundTransparency = 1
-	if Main:FindFirstChild('Notice') then Main.Notice.Visible = false end
-	Main.Shadow.Image.ImageTransparency = 1
-
-	LoadingFrame.Title.TextTransparency = 1
-	LoadingFrame.Subtitle.TextTransparency = 1
-
-	if Settings.ShowText then
-		MPrompt.Title.Text = 'Show '..Settings.ShowText
-	end
-
-	LoadingFrame.Version.TextTransparency = 1
-	LoadingFrame.Title.Text = Settings.LoadingTitle or "Rayfield"
-	LoadingFrame.Subtitle.Text = Settings.LoadingSubtitle or "Interface Suite"
-
-	if Settings.LoadingTitle ~= "Rayfield Interface Suite" then
-		LoadingFrame.Version.Text = "Rayfield UI"
-	end
-
-	if Settings.Icon and Settings.Icon ~= 0 and Topbar:FindFirstChild('Icon') then
-		Topbar.Icon.Visible = true
-		Topbar.Title.Position = UDim2.new(0, 47, 0.5, 0)
-
-		if Settings.Icon then
-			local img, rectOffset, rectSize = resolveIcon(Settings.Icon)
-			Topbar.Icon.Image = img
-			if rectOffset then Topbar.Icon.ImageRectOffset = rectOffset end
-			if rectSize then Topbar.Icon.ImageRectSize = rectSize end
-		else
-			Topbar.Icon.Image = ""
-		end
-	end
-
-	if dragBar then
-		dragBar.Visible = false
-		dragBarCosmetic.BackgroundTransparency = 1
-		dragBar.Visible = true
-	end
-
-	if Settings.Theme then
-		local success, result = pcall(ChangeTheme, Settings.Theme)
-		if not success then
-			local success, result2 = pcall(ChangeTheme, 'Default')
-			if not success then
-				warn('CRITICAL ERROR - NO DEFAULT THEME')
-				print(result2)
-			end
-			warn('issue rendering theme. no theme on file')
-			print(result)
-		end
-	end
-
-	Topbar.Visible = false
-	Elements.Visible = false
-	LoadingFrame.Visible = true
-
-	if not Settings.DisableRayfieldPrompts then
-		task.spawn(function()
-			while not rayfieldDestroyed do
-				task.wait(math.random(180, 600))
-				if rayfieldDestroyed then break end
-				RayfieldLibrary:Notify({
-					Title = "Rayfield Interface",
-					Content = "Enjoying this UI library? Find it at sirius.menu/discord",
-					Duration = 7,
-					Image = 4370033185,
-				})
-			end
-		end)
-	end
-
-	pcall(function()
-		if not Settings.ConfigurationSaving.FileName then
-			Settings.ConfigurationSaving.FileName = tostring(game.PlaceId)
-		end
-
-		if Settings.ConfigurationSaving.Enabled == nil then
-			Settings.ConfigurationSaving.Enabled = false
-		end
-
-		CFileName = Settings.ConfigurationSaving.FileName
-		ConfigurationFolder = Settings.ConfigurationSaving.FolderName or ConfigurationFolder
-		CEnabled = Settings.ConfigurationSaving.Enabled
-
-		if Settings.ConfigurationSaving.Enabled then
-			ensureFolder(ConfigurationFolder)
-		end
-	end)
-
-
-	makeDraggable(Main, Topbar, false, {dragOffset, dragOffsetMobile})
-	if dragBar then dragBar.Position = useMobileSizing and UDim2.new(0.5, 0, 0.5, dragOffsetMobile) or UDim2.new(0.5, 0, 0.5, dragOffset) makeDraggable(Main, dragInteract, true, {dragOffset, dragOffsetMobile}) end
-
-	for _, TabButton in ipairs(TabList:GetChildren()) do
-		if TabButton.ClassName == "Frame" and TabButton.Name ~= "Placeholder" then
-			TabButton.BackgroundTransparency = 1
-			TabButton.Title.TextTransparency = 1
-			TabButton.Image.ImageTransparency = 1
-			TabButton.UIStroke.Transparency = 1
-		end
-	end
-
-	if Settings.Discord and Settings.Discord.Enabled and not useStudio and not secureMode then
-		ensureFolder(RayfieldFolder.."/Discord Invites")
-
-		if not callSafely(isfile, RayfieldFolder.."/Discord Invites".."/"..Settings.Discord.Invite..ConfigurationExtension) then
-			if requestFunc then
-				pcall(function()
-					requestFunc({
-						Url = 'http://127.0.0.1:6463/rpc?v=1',
-						Method = 'POST',
-						Headers = {
-							['Content-Type'] = 'application/json',
-							Origin = 'https://discord.com'
-						},
-						Body = HttpService:JSONEncode({
-							cmd = 'INVITE_BROWSER',
-							nonce = HttpService:GenerateGUID(false),
-							args = {code = Settings.Discord.Invite}
-						})
-					})
-				end)
-			end
-
-			if Settings.Discord.RememberJoins then -- We do logic this way so if the developer changes this setting, the user still won't be prompted, only new users
-				callSafely(writefile, RayfieldFolder.."/Discord Invites".."/"..Settings.Discord.Invite..ConfigurationExtension,"Rayfield RememberJoins is true for this invite, this invite will not ask you to join again")
-			end
-		end
-	end
-
-	if (Settings.KeySystem) then
-		if not Settings.KeySettings then
-			Passthrough = true
-			return
-		end
-
-		ensureFolder(RayfieldFolder.."/Key System")
-
-		if typeof(Settings.KeySettings.Key) == "string" then Settings.KeySettings.Key = {Settings.KeySettings.Key} end
-
-		if Settings.KeySettings.GrabKeyFromSite then
-			for i, Key in ipairs(Settings.KeySettings.Key) do
-				local Success, Response = pcall(function()
-					Settings.KeySettings.Key[i] = tostring(game:HttpGet(Key):gsub("[\n\r]", " "))
-					Settings.KeySettings.Key[i] = string.gsub(Settings.KeySettings.Key[i], " ", "")
-				end)
-				if not Success then
-					print("Rayfield | "..Key.." Error " ..tostring(Response))
-					warn('Check docs.sirius.menu for help with Rayfield specific development.')
-				end
-			end
-		end
-
-		if not Settings.KeySettings.FileName then
-			Settings.KeySettings.FileName = "No file name specified"
-		end
-
-		if callSafely(isfile, RayfieldFolder.."/Key System".."/"..Settings.KeySettings.FileName..ConfigurationExtension) then
-			for _, MKey in ipairs(Settings.KeySettings.Key) do
-				local savedKeys = callSafely(readfile, RayfieldFolder.."/Key System".."/"..Settings.KeySettings.FileName..ConfigurationExtension)
-				if savedKeys and string.find(savedKeys, MKey) then
-					Passthrough = true
-				end
-			end
-		end
-
-		if not Passthrough and secureMode then
-			warn("Rayfield | Secure Mode: Key system requires a valid saved key. The key UI cannot be shown as it requires loading detectable assets.")
-			Rayfield.Enabled = false
-			return RayfieldLibrary
-		end
-
-		if not Passthrough then
-			local AttemptsRemaining = Settings.KeySettings.MaxAttempts or 5
-			Rayfield.Enabled = false
-			local KeyUI = useStudio and script.Parent:FindFirstChild('Key') or game:GetObjects("rbxassetid://11380036235")[1]
-
-			KeyUI.Enabled = true
-
-			if gethui then
-				KeyUI.Parent = gethui()
-			elseif syn and syn.protect_gui then 
-				syn.protect_gui(KeyUI)
-				KeyUI.Parent = CoreGui
-			elseif not useStudio and CoreGui:FindFirstChild("RobloxGui") then
-				KeyUI.Parent = CoreGui:FindFirstChild("RobloxGui")
-			elseif not useStudio then
-				KeyUI.Parent = CoreGui
-			end
-
-			if gethui then
-				for _, Interface in ipairs(gethui():GetChildren()) do
-					if Interface.Name == KeyUI.Name and Interface ~= KeyUI then
-						Interface.Enabled = false
-						Interface.Name = "KeyUI-Old"
-					end
-				end
-			elseif not useStudio then
-				for _, Interface in ipairs(CoreGui:GetChildren()) do
-					if Interface.Name == KeyUI.Name and Interface ~= KeyUI then
-						Interface.Enabled = false
-						Interface.Name = "KeyUI-Old"
-					end
-				end
-			end
-
-			local KeyMain = KeyUI.Main
-			KeyMain.Title.Text = Settings.KeySettings.Title or Settings.Name
-			KeyMain.Subtitle.Text = Settings.KeySettings.Subtitle or "Key System"
-			KeyMain.NoteMessage.Text = Settings.KeySettings.Note or "No instructions"
-
-			KeyMain.Size = UDim2.new(0, 467, 0, 175)
-			KeyMain.BackgroundTransparency = 1
-			KeyMain.Shadow.Image.ImageTransparency = 1
-			KeyMain.Title.TextTransparency = 1
-			KeyMain.Subtitle.TextTransparency = 1
-			KeyMain.KeyNote.TextTransparency = 1
-			KeyMain.Input.BackgroundTransparency = 1
-			KeyMain.Input.UIStroke.Transparency = 1
-			KeyMain.Input.InputBox.TextTransparency = 1
-			KeyMain.NoteTitle.TextTransparency = 1
-			KeyMain.NoteMessage.TextTransparency = 1
-			KeyMain.Hide.ImageTransparency = 1
-
-			TweenService:Create(KeyMain, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-			TweenService:Create(KeyMain, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 500, 0, 187)}):Play()
-			TweenService:Create(KeyMain.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 0.5}):Play()
-			task.wait(0.05)
-			TweenService:Create(KeyMain.Title, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-			TweenService:Create(KeyMain.Subtitle, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-			task.wait(0.05)
-			TweenService:Create(KeyMain.KeyNote, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-			TweenService:Create(KeyMain.Input, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-			TweenService:Create(KeyMain.Input.UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
-			TweenService:Create(KeyMain.Input.InputBox, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-			task.wait(0.05)
-			TweenService:Create(KeyMain.NoteTitle, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-			TweenService:Create(KeyMain.NoteMessage, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-			task.wait(0.15)
-			TweenService:Create(KeyMain.Hide, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {ImageTransparency = 0.3}):Play()
-
-
-			KeyUI.Main.Input.InputBox.FocusLost:Connect(function()
-				if #KeyUI.Main.Input.InputBox.Text == 0 then return end
-				local KeyFound = false
-				local FoundKey = ''
-				for _, MKey in ipairs(Settings.KeySettings.Key) do
-					--if string.find(KeyMain.Input.InputBox.Text, MKey) then
-					--	KeyFound = true
-					--	FoundKey = MKey
-					--end
-
-
-					-- stricter key check
-					if KeyMain.Input.InputBox.Text == MKey then
-						KeyFound = true
-						FoundKey = MKey
-					end
-				end
-				if KeyFound then
-					fadeOutKeyUI(KeyMain)
-					task.wait(0.51)
-					Passthrough = true
-					KeyMain.Visible = false
-					if Settings.KeySettings.SaveKey then
-						callSafely(writefile, RayfieldFolder.."/Key System".."/"..Settings.KeySettings.FileName..ConfigurationExtension, FoundKey)
-						RayfieldLibrary:Notify({Title = "Key System", Content = "The key for this script has been saved successfully.", Image = 3605522284})
-					end
-				else
-					if AttemptsRemaining == 0 then
-						fadeOutKeyUI(KeyMain)
-						task.wait(0.45)
-						Players.LocalPlayer:Kick("No Attempts Remaining")
-						game:Shutdown()
-					end
-					KeyMain.Input.InputBox.Text = ""
-					AttemptsRemaining = AttemptsRemaining - 1
-					TweenService:Create(KeyMain, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 467, 0, 175)}):Play()
-					TweenService:Create(KeyMain, TweenInfo.new(0.4, Enum.EasingStyle.Elastic), {Position = UDim2.new(0.495,0,0.5,0)}):Play()
-					task.wait(0.1)
-					TweenService:Create(KeyMain, TweenInfo.new(0.4, Enum.EasingStyle.Elastic), {Position = UDim2.new(0.505,0,0.5,0)}):Play()
-					task.wait(0.1)
-					TweenService:Create(KeyMain, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {Position = UDim2.new(0.5,0,0.5,0)}):Play()
-					TweenService:Create(KeyMain, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 500, 0, 187)}):Play()
-				end
-			end)
-
-			KeyMain.Hide.MouseButton1Click:Connect(function()
-				fadeOutKeyUI(KeyMain)
-				task.wait(0.51)
-				Passthrough = true
-				RayfieldLibrary:Destroy()
-				KeyUI:Destroy()
-			end)
-		else
-			Passthrough = true
-		end
-	end
-	if Settings.KeySystem then
-		repeat task.wait() until Passthrough
-		if rayfieldDestroyed then return end
-	end
-
-	Notifications.Template.Visible = false
-	Notifications.Visible = true
-	Rayfield.Enabled = true
-
-	task.wait(0.5)
-	TweenService:Create(Main, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-	TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0.6}):Play()
-	task.wait(0.1)
-	TweenService:Create(LoadingFrame.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-	task.wait(0.05)
-	TweenService:Create(LoadingFrame.Subtitle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-	task.wait(0.05)
-	TweenService:Create(LoadingFrame.Version, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-
-
-	Elements.Template.LayoutOrder = 100000
-	Elements.Template.Visible = false
-
-	Elements.UIPageLayout.FillDirection = Enum.FillDirection.Horizontal
-	Elements.UIPageLayout.ScrollWheelInputEnabled = false
-	Elements.UIPageLayout.GamepadInputEnabled = false
-	Elements.UIPageLayout.TouchInputEnabled = false
-	TabList.Template.Visible = false
-
-	-- Tab
-	local FirstTab = false
-	local Window = {}
-	function Window:CreateTab(Name, Image, Ext)
-		local SDone = false
-		local TabButton = TabList.Template:Clone()
-		TabButton.Name = Name
-		TabButton.Title.Text = Name
-		TabButton.Parent = TabList
-		TabButton.Title.TextWrapped = false
-		TabButton.Size = UDim2.new(0, TabButton.Title.TextBounds.X + 30, 0, 30)
-
-		if Image and Image ~= 0 then
-			local img, rectOffset, rectSize = resolveIcon(Image)
-			TabButton.Image.Image = img
-			if rectOffset then TabButton.Image.ImageRectOffset = rectOffset end
-			if rectSize then TabButton.Image.ImageRectSize = rectSize end
-
-			TabButton.Title.AnchorPoint = Vector2.new(0, 0.5)
-			TabButton.Title.Position = UDim2.new(0, 37, 0.5, 0)
-			TabButton.Image.Visible = true
-			TabButton.Title.TextXAlignment = Enum.TextXAlignment.Left
-			TabButton.Size = UDim2.new(0, TabButton.Title.TextBounds.X + 52, 0, 30)
-		end
-
-
-
-		TabButton.BackgroundTransparency = 1
-		TabButton.Title.TextTransparency = 1
-		TabButton.Image.ImageTransparency = 1
-		TabButton.UIStroke.Transparency = 1
-
-		TabButton.Visible = not Ext or false
-
-		-- Create Elements Page
-		local TabPage = Elements.Template:Clone()
-		TabPage.Name = Name
-		TabPage.Visible = true
-
-		TabPage.LayoutOrder = Ext and 10000 or #Elements:GetChildren()
-
-		for _, TemplateElement in ipairs(TabPage:GetChildren()) do
-			if TemplateElement.ClassName == "Frame" and TemplateElement.Name ~= "Placeholder" then
-				TemplateElement:Destroy()
-			end
-		end
-
-		TabPage.Parent = Elements
-		if not FirstTab and not Ext then
-			Elements.UIPageLayout.Animated = false
-			Elements.UIPageLayout:JumpTo(TabPage)
-			Elements.UIPageLayout.Animated = true
-		end
-
-		TabButton.UIStroke.Color = SelectedTheme.TabStroke
-
-		if Elements.UIPageLayout.CurrentPage == TabPage then
-			TabButton.BackgroundColor3 = SelectedTheme.TabBackgroundSelected
-			TabButton.Image.ImageColor3 = SelectedTheme.SelectedTabTextColor
-			TabButton.Title.TextColor3 = SelectedTheme.SelectedTabTextColor
-		else
-			TabButton.BackgroundColor3 = SelectedTheme.TabBackground
-			TabButton.Image.ImageColor3 = SelectedTheme.TabTextColor
-			TabButton.Title.TextColor3 = SelectedTheme.TabTextColor
-		end
-
-
-		-- Animate
-		task.wait(0.1)
-		if FirstTab or Ext then
-			TabButton.BackgroundColor3 = SelectedTheme.TabBackground
-			TabButton.Image.ImageColor3 = SelectedTheme.TabTextColor
-			TabButton.Title.TextColor3 = SelectedTheme.TabTextColor
-			TweenService:Create(TabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.7}):Play()
-			TweenService:Create(TabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0.2}):Play()
-			TweenService:Create(TabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0.2}):Play()
-			TweenService:Create(TabButton.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
-		elseif not Ext then
-			FirstTab = Name
-			TabButton.BackgroundColor3 = SelectedTheme.TabBackgroundSelected
-			TabButton.Image.ImageColor3 = SelectedTheme.SelectedTabTextColor
-			TabButton.Title.TextColor3 = SelectedTheme.SelectedTabTextColor
-			TweenService:Create(TabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0}):Play()
-			TweenService:Create(TabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-			TweenService:Create(TabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-		end
-
-
-		TabButton.Interact.MouseButton1Click:Connect(function()
-			if Minimised then return end
-			TweenService:Create(TabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-			TweenService:Create(TabButton.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
-			TweenService:Create(TabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-			TweenService:Create(TabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0}):Play()
-			TweenService:Create(TabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.TabBackgroundSelected}):Play()
-			TweenService:Create(TabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextColor3 = SelectedTheme.SelectedTabTextColor}):Play()
-			TweenService:Create(TabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageColor3 = SelectedTheme.SelectedTabTextColor}):Play()
-
-			for _, OtherTabButton in ipairs(TabList:GetChildren()) do
-				if OtherTabButton.Name ~= "Template" and OtherTabButton.ClassName == "Frame" and OtherTabButton ~= TabButton and OtherTabButton.Name ~= "Placeholder" then
-					TweenService:Create(OtherTabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.TabBackground}):Play()
-					TweenService:Create(OtherTabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextColor3 = SelectedTheme.TabTextColor}):Play()
-					TweenService:Create(OtherTabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageColor3 = SelectedTheme.TabTextColor}):Play()
-					TweenService:Create(OtherTabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.7}):Play()
-					TweenService:Create(OtherTabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0.2}):Play()
-					TweenService:Create(OtherTabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0.2}):Play()
-					TweenService:Create(OtherTabButton.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
-				end
-			end
-
-			if Elements.UIPageLayout.CurrentPage ~= TabPage then
-				Elements.UIPageLayout:JumpTo(TabPage)
-			end
-		end)
-
-		local Tab = {}
-
-		-- Button
-		function Tab:CreateButton(ButtonSettings)
-			local ButtonValue = {}
-
-			local Button = Elements.Template.Button:Clone()
-			Button.Name = ButtonSettings.Name
-			Button.Title.Text = ButtonSettings.Name
-			Button.Visible = true
-			Button.Parent = TabPage
-
-			Button.BackgroundTransparency = 1
-			Button.UIStroke.Transparency = 1
-			Button.Title.TextTransparency = 1
-
-			TweenService:Create(Button, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-			TweenService:Create(Button.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
-			TweenService:Create(Button.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()	
-
-
-			Button.Interact.MouseButton1Click:Connect(function()
-				local Success, Response = pcall(ButtonSettings.Callback)
-				-- Prevents animation from trying to play if the button's callback called RayfieldLibrary:Destroy()
-				if rayfieldDestroyed then
-					return
-				end
-				if not Success then
-					TweenService:Create(Button, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = Color3.fromRGB(85, 0, 0)}):Play()
-					TweenService:Create(Button.ElementIndicator, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-					TweenService:Create(Button.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
-					Button.Title.Text = "Callback Error"
-					print("Rayfield | "..ButtonSettings.Name.." Callback Error " ..tostring(Response))
-					warn('Check docs.sirius.menu for help with Rayfield specific development.')
-					task.wait(0.5)
-					Button.Title.Text = ButtonSettings.Name
-					TweenService:Create(Button, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
-					TweenService:Create(Button.ElementIndicator, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {TextTransparency = 0.9}):Play()
-					TweenService:Create(Button.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
-				else
-					if not ButtonSettings.Ext then
-						SaveConfiguration(ButtonSettings.Name..'\n')
-					end
-					TweenService:Create(Button, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
-					TweenService:Create(Button.ElementIndicator, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-					TweenService:Create(Button.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
-					task.wait(0.2)
-					TweenService:Create(Button, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
-					TweenService:Create(Button.ElementIndicator, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {TextTransparency = 0.9}):Play()
-					TweenService:Create(Button.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
-				end
-			end)
-
-			Button.MouseEnter:Connect(function()
-				TweenService:Create(Button, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
-				TweenService:Create(Button.ElementIndicator, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {TextTransparency = 0.7}):Play()
-			end)
-
-			Button.MouseLeave:Connect(function()
-				TweenService:Create(Button, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
-				TweenService:Create(Button.ElementIndicator, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {TextTransparency = 0.9}):Play()
-			end)
-
-			function ButtonValue:Set(NewButton)
-				Button.Title.Text = NewButton
-				Button.Name = NewButton
-			end
-
-			return ButtonValue
-		end
-
-		-- ColorPicker
-		function Tab:CreateColorPicker(ColorPickerSettings) -- by Throit
-			ColorPickerSettings.Type = "ColorPicker"
-			local ColorPicker = Elements.Template.ColorPicker:Clone()
-			local Background = ColorPicker.CPBackground
-			local Display = Background.Display
-			local Main = Background.MainCP
-			local Slider = ColorPicker.ColorSlider
-			ColorPicker.ClipsDescendants = true
-			ColorPicker.Name = ColorPickerSettings.Name
-			ColorPicker.Title.Text = ColorPickerSettings.Name
-			ColorPicker.Visible = true
-			ColorPicker.Parent = TabPage
-			ColorPicker.Size = UDim2.new(1, -10, 0, 45)
-			Background.Size = UDim2.new(0, 39, 0, 22)
-			Display.BackgroundTransparency = 0
-			Main.MainPoint.ImageTransparency = 1
-			ColorPicker.Interact.Size = UDim2.new(1, 0, 1, 0)
-			ColorPicker.Interact.Position = UDim2.new(0.5, 0, 0.5, 0)
-			ColorPicker.RGB.Position = UDim2.new(0, 17, 0, 70)
-			ColorPicker.HexInput.Position = UDim2.new(0, 17, 0, 90)
-			Main.ImageTransparency = 1
-			Background.BackgroundTransparency = 1
-
-			for _, rgbinput in ipairs(ColorPicker.RGB:GetChildren()) do
-				if rgbinput:IsA("Frame") then
-					rgbinput.BackgroundColor3 = SelectedTheme.InputBackground
-					rgbinput.UIStroke.Color = SelectedTheme.InputStroke
-				end
-			end
-
-			ColorPicker.HexInput.BackgroundColor3 = SelectedTheme.InputBackground
-			ColorPicker.HexInput.UIStroke.Color = SelectedTheme.InputStroke
-
-			local opened = false 
-			local mouse = Players.LocalPlayer:GetMouse()
-			local mainDragging = false 
-			local sliderDragging = false 
-			ColorPicker.Interact.MouseButton1Down:Connect(function()
-				task.spawn(function()
-					TweenService:Create(ColorPicker, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
-					TweenService:Create(ColorPicker.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
-					task.wait(0.2)
-					TweenService:Create(ColorPicker, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
-					TweenService:Create(ColorPicker.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
-				end)
-
-				if not opened then
-					opened = true 
-					TweenService:Create(Background, TweenInfo.new(0.45, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 18, 0, 15)}):Play()
-					task.wait(0.1)
-					TweenService:Create(ColorPicker, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, -10, 0, 120)}):Play()
-					TweenService:Create(Background, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 173, 0, 86)}):Play()
-					TweenService:Create(Display, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-					TweenService:Create(ColorPicker.Interact, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Position = UDim2.new(0.289, 0, 0.5, 0)}):Play()
-					TweenService:Create(ColorPicker.RGB, TweenInfo.new(0.8, Enum.EasingStyle.Exponential), {Position = UDim2.new(0, 17, 0, 40)}):Play()
-					TweenService:Create(ColorPicker.HexInput, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Position = UDim2.new(0, 17, 0, 73)}):Play()
-					TweenService:Create(ColorPicker.Interact, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(0.574, 0, 1, 0)}):Play()
-					TweenService:Create(Main.MainPoint, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {ImageTransparency = 0}):Play()
-					TweenService:Create(Main, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {ImageTransparency = SelectedTheme ~= RayfieldLibrary.Theme.Default and 0.25 or 0.1}):Play()
-					TweenService:Create(Background, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-				else
-					opened = false
-					TweenService:Create(ColorPicker, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, -10, 0, 45)}):Play()
-					TweenService:Create(Background, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 39, 0, 22)}):Play()
-					TweenService:Create(ColorPicker.Interact, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, 0, 1, 0)}):Play()
-					TweenService:Create(ColorPicker.Interact, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Position = UDim2.new(0.5, 0, 0.5, 0)}):Play()
-					TweenService:Create(ColorPicker.RGB, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Position = UDim2.new(0, 17, 0, 70)}):Play()
-					TweenService:Create(ColorPicker.HexInput, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Position = UDim2.new(0, 17, 0, 90)}):Play()
-					TweenService:Create(Display, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-					TweenService:Create(Main.MainPoint, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
-					TweenService:Create(Main, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
-					TweenService:Create(Background, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-				end
-
-			end)
-
-			local colorPickerInputConnection = UserInputService.InputEnded:Connect(function(input, gameProcessed) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-					mainDragging = false
-					sliderDragging = false
-				end end)
-			Main.MouseButton1Down:Connect(function()
-				if opened then
-					mainDragging = true 
-				end
-			end)
-			Main.MainPoint.MouseButton1Down:Connect(function()
-				if opened then
-					mainDragging = true 
-				end
-			end)
-			Slider.MouseButton1Down:Connect(function()
-				sliderDragging = true 
-			end)
-			Slider.SliderPoint.MouseButton1Down:Connect(function()
-				sliderDragging = true 
-			end)
-			local h,s,v = ColorPickerSettings.Color:ToHSV()
-			local color = Color3.fromHSV(h,s,v) 
-			local hex = string.format("#%02X%02X%02X",color.R*0xFF,color.G*0xFF,color.B*0xFF)
-			ColorPicker.HexInput.InputBox.Text = hex
-			local function setDisplay()
-				--Main
-				Main.MainPoint.Position = UDim2.new(s,-Main.MainPoint.AbsoluteSize.X/2,1-v,-Main.MainPoint.AbsoluteSize.Y/2)
-				Main.MainPoint.ImageColor3 = Color3.fromHSV(h,s,v)
-				Background.BackgroundColor3 = Color3.fromHSV(h,1,1)
-				Display.BackgroundColor3 = Color3.fromHSV(h,s,v)
-				--Slider 
-				local x = h * Slider.AbsoluteSize.X
-				Slider.SliderPoint.Position = UDim2.new(0,x-Slider.SliderPoint.AbsoluteSize.X/2,0.5,0)
-				Slider.SliderPoint.ImageColor3 = Color3.fromHSV(h,1,1)
-				local color = Color3.fromHSV(h,s,v) 
-				local r,g,b = math.floor((color.R*255)+0.5),math.floor((color.G*255)+0.5),math.floor((color.B*255)+0.5)
-				ColorPicker.RGB.RInput.InputBox.Text = tostring(r)
-				ColorPicker.RGB.GInput.InputBox.Text = tostring(g)
-				ColorPicker.RGB.BInput.InputBox.Text = tostring(b)
-				hex = string.format("#%02X%02X%02X",color.R*0xFF,color.G*0xFF,color.B*0xFF)
-				ColorPicker.HexInput.InputBox.Text = hex
-			end
-			setDisplay()
-			ColorPicker.HexInput.InputBox.FocusLost:Connect(function()
-				if not pcall(function()
-						local r, g, b = string.match(ColorPicker.HexInput.InputBox.Text, "^#?(%w%w)(%w%w)(%w%w)$")
-						local rgbColor = Color3.fromRGB(tonumber(r, 16),tonumber(g, 16), tonumber(b, 16))
-						h,s,v = rgbColor:ToHSV()
-						hex = ColorPicker.HexInput.InputBox.Text
-						setDisplay()
-						ColorPickerSettings.Color = rgbColor
-					end) 
-				then 
-					ColorPicker.HexInput.InputBox.Text = hex 
-				end
-				pcall(function()ColorPickerSettings.Callback(Color3.fromHSV(h,s,v))end)
-				local r,g,b = math.floor((h*255)+0.5),math.floor((s*255)+0.5),math.floor((v*255)+0.5)
-				ColorPickerSettings.Color = Color3.fromRGB(r,g,b)
-				if not ColorPickerSettings.Ext then
-					SaveConfiguration()
-				end
-			end)
-			--RGB
-			local function rgbBoxes(box,toChange)
-				local value = tonumber(box.Text) 
-				local color = Color3.fromHSV(h,s,v) 
-				local oldR,oldG,oldB = math.floor((color.R*255)+0.5),math.floor((color.G*255)+0.5),math.floor((color.B*255)+0.5)
-				local save 
-				if toChange == "R" then save = oldR;oldR = value elseif toChange == "G" then save = oldG;oldG = value else save = oldB;oldB = value end
-				if value then 
-					value = math.clamp(value,0,255)
-					h,s,v = Color3.fromRGB(oldR,oldG,oldB):ToHSV()
-
-					setDisplay()
-				else 
-					box.Text = tostring(save)
-				end
-				local r,g,b = math.floor((h*255)+0.5),math.floor((s*255)+0.5),math.floor((v*255)+0.5)
-				ColorPickerSettings.Color = Color3.fromRGB(r,g,b)
-				if not ColorPickerSettings.Ext then
-					SaveConfiguration(ColorPickerSettings.Flag..'\n'..tostring(ColorPickerSettings.Color))
-				end
-			end
-			ColorPicker.RGB.RInput.InputBox.FocusLost:connect(function()
-				rgbBoxes(ColorPicker.RGB.RInput.InputBox,"R")
-				pcall(function()ColorPickerSettings.Callback(Color3.fromHSV(h,s,v))end)
-			end)
-			ColorPicker.RGB.GInput.InputBox.FocusLost:connect(function()
-				rgbBoxes(ColorPicker.RGB.GInput.InputBox,"G")
-				pcall(function()ColorPickerSettings.Callback(Color3.fromHSV(h,s,v))end)
-			end)
-			ColorPicker.RGB.BInput.InputBox.FocusLost:connect(function()
-				rgbBoxes(ColorPicker.RGB.BInput.InputBox,"B")
-				pcall(function()ColorPickerSettings.Callback(Color3.fromHSV(h,s,v))end)
-			end)
-
-			local colorPickerRenderConnection = RunService.RenderStepped:connect(function()
-				if mainDragging then
-					local localX = math.clamp(mouse.X-Main.AbsolutePosition.X,0,Main.AbsoluteSize.X)
-					local localY = math.clamp(mouse.Y-Main.AbsolutePosition.Y,0,Main.AbsoluteSize.Y)
-					Main.MainPoint.Position = UDim2.new(0,localX-Main.MainPoint.AbsoluteSize.X/2,0,localY-Main.MainPoint.AbsoluteSize.Y/2)
-					s = localX / Main.AbsoluteSize.X
-					v = 1 - (localY / Main.AbsoluteSize.Y)
-					Display.BackgroundColor3 = Color3.fromHSV(h,s,v)
-					Main.MainPoint.ImageColor3 = Color3.fromHSV(h,s,v)
-					Background.BackgroundColor3 = Color3.fromHSV(h,1,1)
-					local color = Color3.fromHSV(h,s,v) 
-					local r,g,b = math.floor((color.R*255)+0.5),math.floor((color.G*255)+0.5),math.floor((color.B*255)+0.5)
-					ColorPicker.RGB.RInput.InputBox.Text = tostring(r)
-					ColorPicker.RGB.GInput.InputBox.Text = tostring(g)
-					ColorPicker.RGB.BInput.InputBox.Text = tostring(b)
-					ColorPicker.HexInput.InputBox.Text = string.format("#%02X%02X%02X",color.R*0xFF,color.G*0xFF,color.B*0xFF)
-					pcall(function()ColorPickerSettings.Callback(Color3.fromHSV(h,s,v))end)
-					ColorPickerSettings.Color = Color3.fromRGB(r,g,b)
-					if not ColorPickerSettings.Ext then
-						SaveConfiguration()
-					end
-				end
-				if sliderDragging then 
-					local localX = math.clamp(mouse.X-Slider.AbsolutePosition.X,0,Slider.AbsoluteSize.X)
-					h = localX / Slider.AbsoluteSize.X
-					Display.BackgroundColor3 = Color3.fromHSV(h,s,v)
-					Slider.SliderPoint.Position = UDim2.new(0,localX-Slider.SliderPoint.AbsoluteSize.X/2,0.5,0)
-					Slider.SliderPoint.ImageColor3 = Color3.fromHSV(h,1,1)
-					Background.BackgroundColor3 = Color3.fromHSV(h,1,1)
-					Main.MainPoint.ImageColor3 = Color3.fromHSV(h,s,v)
-					local color = Color3.fromHSV(h,s,v) 
-					local r,g,b = math.floor((color.R*255)+0.5),math.floor((color.G*255)+0.5),math.floor((color.B*255)+0.5)
-					ColorPicker.RGB.RInput.InputBox.Text = tostring(r)
-					ColorPicker.RGB.GInput.InputBox.Text = tostring(g)
-					ColorPicker.RGB.BInput.InputBox.Text = tostring(b)
-					ColorPicker.HexInput.InputBox.Text = string.format("#%02X%02X%02X",color.R*0xFF,color.G*0xFF,color.B*0xFF)
-					pcall(function()ColorPickerSettings.Callback(Color3.fromHSV(h,s,v))end)
-					ColorPickerSettings.Color = Color3.fromRGB(r,g,b)
-					if not ColorPickerSettings.Ext then
-						SaveConfiguration()
-					end
-				end
-			end)
-
-			ColorPicker.Destroying:Connect(function()
-				if colorPickerRenderConnection then
-					colorPickerRenderConnection:Disconnect()
-				end
-				if colorPickerInputConnection then
-					colorPickerInputConnection:Disconnect()
-				end
-			end)
-
-			if Settings.ConfigurationSaving then
-				if Settings.ConfigurationSaving.Enabled and ColorPickerSettings.Flag then
-					RayfieldLibrary.Flags[ColorPickerSettings.Flag] = ColorPickerSettings
-				end
-			end
-
-			function ColorPickerSettings:Set(RGBColor)
-				ColorPickerSettings.Color = RGBColor
-				h,s,v = ColorPickerSettings.Color:ToHSV()
-				color = Color3.fromHSV(h,s,v)
-				setDisplay()
-			end
-
-			ColorPicker.MouseEnter:Connect(function()
-				TweenService:Create(ColorPicker, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
-			end)
-
-			ColorPicker.MouseLeave:Connect(function()
-				TweenService:Create(ColorPicker, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
-			end)
-
-			Rayfield.Main:GetPropertyChangedSignal('BackgroundColor3'):Connect(function()
-				for _, rgbinput in ipairs(ColorPicker.RGB:GetChildren()) do
-					if rgbinput:IsA("Frame") then
-						rgbinput.BackgroundColor3 = SelectedTheme.InputBackground
-						rgbinput.UIStroke.Color = SelectedTheme.InputStroke
-					end
-				end
-
-				ColorPicker.HexInput.BackgroundColor3 = SelectedTheme.InputBackground
-				ColorPicker.HexInput.UIStroke.Color = SelectedTheme.InputStroke
-			end)
-
-			return ColorPickerSettings
-		end
-
-		-- Section
-		function Tab:CreateSection(SectionName)
-
-			local SectionValue = {}
-
-			if SDone then
-				local SectionSpace = Elements.Template.SectionSpacing:Clone()
-				SectionSpace.Visible = true
-				SectionSpace.Parent = TabPage
-			end
-
-			local Section = Elements.Template.SectionTitle:Clone()
-			Section.Title.Text = SectionName
-			Section.Visible = true
-			Section.Parent = TabPage
-
-			Section.Title.TextTransparency = 1
-			TweenService:Create(Section.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0.4}):Play()
-
-			function SectionValue:Set(NewSection)
-				Section.Title.Text = NewSection
-			end
-
-			SDone = true
-
-			return SectionValue
-		end
-
-		-- Divider
-		function Tab:CreateDivider()
-			local DividerValue = {}
-
-			local Divider = Elements.Template.Divider:Clone()
-			Divider.Visible = true
-			Divider.Parent = TabPage
-
-			Divider.Divider.BackgroundTransparency = 1
-			TweenService:Create(Divider.Divider, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.85}):Play()
-
-			function DividerValue:Set(Value)
-				Divider.Visible = Value
-			end
-
-			return DividerValue
-		end
-
-		-- Label
-		function Tab:CreateLabel(LabelText : string, Icon: number, Color : Color3, IgnoreTheme : boolean)
-			local LabelValue = {}
-
-			local Label = Elements.Template.Label:Clone()
-			Label.Title.Text = LabelText
-			Label.Visible = true
-			Label.Parent = TabPage
-
-			Label.BackgroundColor3 = Color or SelectedTheme.SecondaryElementBackground
-			Label.UIStroke.Color = Color or SelectedTheme.SecondaryElementStroke
-
-			if Icon then
-				local img, rectOffset, rectSize = resolveIcon(Icon)
-				Label.Icon.Image = img
-				if rectOffset then Label.Icon.ImageRectOffset = rectOffset end
-				if rectSize then Label.Icon.ImageRectSize = rectSize end
-			else
-				Label.Icon.Image = ""
-			end
-
-			if Icon and Label:FindFirstChild('Icon') then
-				Label.Title.Position = UDim2.new(0, 45, 0.5, 0)
-				Label.Title.Size = UDim2.new(1, -100, 0, 14)
-				Label.Icon.Visible = true
-			end
-
-			Label.Icon.ImageTransparency = 1
-			Label.BackgroundTransparency = 1
-			Label.UIStroke.Transparency = 1
-			Label.Title.TextTransparency = 1
-
-			Label:SetAttribute("BackgroundTransparencyTarget", Color and 0.8 or 0)
-			Label:SetAttribute("UIStrokeTransparencyTarget", Color and 0.7 or 0)
-			Label:SetAttribute("TitleTextTransparencyTarget", Color and 0.2 or 0)
-
-			TweenService:Create(Label, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = Color and 0.8 or 0}):Play()
-			TweenService:Create(Label.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = Color and 0.7 or 0}):Play()
-			TweenService:Create(Label.Icon, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0.2}):Play()
-			TweenService:Create(Label.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = Color and 0.2 or 0}):Play()
-
-			function LabelValue:Set(NewLabel, Icon, Color)
-				Label.Title.Text = NewLabel
-
-				if Color then
-					Label.BackgroundColor3 = Color or SelectedTheme.SecondaryElementBackground
-					Label.UIStroke.Color = Color or SelectedTheme.SecondaryElementStroke
-				end
-
-				if Icon and Label:FindFirstChild('Icon') then
-					Label.Title.Position = UDim2.new(0, 45, 0.5, 0)
-					Label.Title.Size = UDim2.new(1, -100, 0, 14)
-
-					local img, rectOffset, rectSize = resolveIcon(Icon)
-					Label.Icon.Image = img
-					if rectOffset then Label.Icon.ImageRectOffset = rectOffset end
-					if rectSize then Label.Icon.ImageRectSize = rectSize end
-
-					Label.Icon.Visible = true
-				end
-			end
-
-			Rayfield.Main:GetPropertyChangedSignal('BackgroundColor3'):Connect(function()
-				Label.BackgroundColor3 = IgnoreTheme and (Color or Label.BackgroundColor3) or SelectedTheme.SecondaryElementBackground
-				Label.UIStroke.Color = IgnoreTheme and (Color or Label.BackgroundColor3) or SelectedTheme.SecondaryElementStroke
-			end)
-
-			return LabelValue
-		end
-
-		-- Paragraph
-		function Tab:CreateParagraph(ParagraphSettings)
-			local ParagraphValue = {}
-
-			local Paragraph = Elements.Template.Paragraph:Clone()
-			Paragraph.Title.Text = ParagraphSettings.Title
-			Paragraph.Content.Text = ParagraphSettings.Content
-			Paragraph.Visible = true
-			Paragraph.Parent = TabPage
-
-			Paragraph.BackgroundTransparency = 1
-			Paragraph.UIStroke.Transparency = 1
-			Paragraph.Title.TextTransparency = 1
-			Paragraph.Content.TextTransparency = 1
-
-			Paragraph.BackgroundColor3 = SelectedTheme.SecondaryElementBackground
-			Paragraph.UIStroke.Color = SelectedTheme.SecondaryElementStroke
-
-			TweenService:Create(Paragraph, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-			TweenService:Create(Paragraph.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
-			TweenService:Create(Paragraph.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()	
-			TweenService:Create(Paragraph.Content, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()	
-
-			function ParagraphValue:Set(NewParagraphSettings)
-				Paragraph.Title.Text = NewParagraphSettings.Title
-				Paragraph.Content.Text = NewParagraphSettings.Content
-			end
-
-			Rayfield.Main:GetPropertyChangedSignal('BackgroundColor3'):Connect(function()
-				Paragraph.BackgroundColor3 = SelectedTheme.SecondaryElementBackground
-				Paragraph.UIStroke.Color = SelectedTheme.SecondaryElementStroke
-			end)
-
-			return ParagraphValue
-		end
-
-		-- Input
-		function Tab:CreateInput(InputSettings)
-			local Input = Elements.Template.Input:Clone()
-			Input.Name = InputSettings.Name
-			Input.Title.Text = InputSettings.Name
-			Input.Visible = true
-			Input.Parent = TabPage
-
-			Input.BackgroundTransparency = 1
-			Input.UIStroke.Transparency = 1
-			Input.Title.TextTransparency = 1
-
-			Input.InputFrame.InputBox.Text = InputSettings.CurrentValue or ''
-
-			Input.InputFrame.BackgroundColor3 = SelectedTheme.InputBackground
-			Input.InputFrame.UIStroke.Color = SelectedTheme.InputStroke
-
-			TweenService:Create(Input, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-			TweenService:Create(Input.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
-			TweenService:Create(Input.
+local Window = Rayfield:CreateWindow({
+    Name = "Venom X",
+    Icon = 0, -- Icon in Topbar. Can use Lucide Icons (string) or Roblox Image (number). 0 to use no icon (default).
+    LoadingTitle = "Venom X Loaded",
+    LoadingSubtitle = "by Chill and NovaX",
+    Theme = "Default", -- Check https://docs.sirius.menu/rayfield/configuration/themes
+ 
+    DisableRayfieldPrompts = false,
+    DisableBuildWarnings = false, -- Prevents Rayfield from warning when the script has a version mismatch with the interface
+ 
+    ConfigurationSaving = {
+       Enabled = true,
+       FolderName = nil, -- Create a custom folder for your hub/game
+       FileName = "VenomX"
+    },
+ 
+    Discord = {
+       Enabled = false, -- Prompt the user to join your Discord server if their executor supports it
+       Invite = "noinvitelink", -- The Discord invite code, do not include discord.gg/. E.g. discord.gg/ ABCD would be ABCD
+       RememberJoins = true -- Set this to false to make them join the discord every time they load it up
+    },
+ 
+    KeySystem = false, -- Set this to true to use our key system
+    KeySettings = {
+       Title = "Untitled",
+       Subtitle = "Key System",
+       Note = "No method of obtaining the key is provided", -- Use this to tell the user how to get a key
+       FileName = "Key", -- It is recommended to use something unique as other scripts using Rayfield may overwrite your key file
+       SaveKey = true, -- The user's key will be saved, but if you change the key, they will be unable to use your script
+       GrabKeyFromSite = false, -- If this is true, set Key below to the RAW site you would like Rayfield to get the key from
+       Key = {"Hello"} -- List of keys that will be accepted by the system, can be RAW file links (pastebin, github etc) or simple strings ("hello","key22")
+    }
+ })
+
+local homeTab = Window:CreateTab("Комбат", 10723407389)
+
+local GrabTab = Window:CreateTab("Основное", 10723404472)
+
+local PlayerTab = Window:CreateTab("текущий игрок", 10747373176)
+local ObjectGrabTab = Window:CreateTab("Хват объекта", 10709782497) 
+local DefanseTab = Window:CreateTab("Анти хват", 10734951847)
+local BlobmanTab = Window:CreateTab("блоб мэн", 10709782230)
+local FunTab = Window:CreateTab("веселье / угар", 10734964441)
+local ScriptTab = Window:CreateTab("Скрипт", 10734943448)
+local AuraTab = Window:CreateTab("Ауры", 10723396107)
+local ExplosionTab = Window:CreateTab("Взрывы", 10709818996)
+local KeybindsTab = Window:CreateTab("горячие клавиши", 10723416765)
+
+local Paragraph = homeTab:CreateParagraph({Title = "UI / NOLIN", Content = "Rayfield library by sirius"})
+local Divider = homeTab:CreateDivider()
+local Paragraph = homeTab:CreateParagraph({Title = "Home!", Content = "Welcome to Venom X! "..Player.Name.." Thanks for useing script!"})
+
+local Label = homeTab:CreateLabel("Дискорд", 10709797725, Color3.fromRGB(10, 10, 10), false) -- Title, Icon, Color, IgnoreTheme
+
+local Button = homeTab:CreateButton({
+    Name = "Мой сервер",
+    Callback = function()
+        setclipboard("https://discord.gg/Qpmdv4mddz")
+    end,
+ })
+
+local Paragraph = homeTab:CreateParagraph({Title = "Info Log", Content = "Script Update log and Discord Update log"})
+local Divider = homeTab:CreateDivider()
+local Paragraph = homeTab:CreateParagraph({Title = "[Script Update]", Content = "[2025/02/19] | Added Get Coin"})
+local Paragraph = homeTab:CreateParagraph({Title = "[Script Update]", Content = "[2025/02/20] | Added Key System"})
+
+_G.strength = 400
+
+local Paragraph = GrabTab:CreateParagraph({Title = "Настройки боя", Content = "Двигай ползунок, чтобы изменить силу броска"})
+
+local Slider = GrabTab:CreateSlider({
+    Name = "Сила броска",
+    Range = {300, 10000},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 300,
+    Flag = "StrengthSlider", 
+    Callback = function(Value)
+        _G.strength = Value
+    end,
+ })
+
+ local Toggle = GrabTab:CreateToggle({
+    Name = "сила",
+    CurrentValue = false,
+    Flag = "StrengthToggle",
+    Callback = function(enabled)
+        if enabled then
+            strengthConnection = workspace.ChildAdded:Connect(function(model)
+                if model.Name == "GrabParts" then
+                    local partToImpulse = model.GrabPart.WeldConstraint.Part1
+                    if partToImpulse then
+                        local velocityObj = Instance.new("BodyVelocity", partToImpulse)
+                        model:GetPropertyChangedSignal("Parent"):Connect(function()
+                            if not model.Parent then
+                                if UserInputService:GetLastInputType() == Enum.UserInputType.MouseButton2 then
+                                    velocityObj.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+                                    velocityObj.Velocity = workspace.CurrentCamera.CFrame.LookVector * _G.strength
+                                    Debris:AddItem(velocityObj, 1)
+                                else
+                                    velocityObj:Destroy()
+                                end
+                            end
+                        end)
+                    end
+                end
+            end)
+        elseif strengthConnection then
+            strengthConnection:Disconnect()
+        end
+    end
+})
+
+local Paragraph = GrabTab:CreateParagraph({Title = "Grab stuff", Content = "These effects apply when you grab someone"})
+
+local Toggle = GrabTab:CreateToggle({
+    Name = "Токсичный хват",
+    CurrentValue = false,
+    Flag = "PGrab", 
+    Callback = function(enabled)
+        if enabled then
+            poisonGrabCoroutine = coroutine.create(function() grabHandler("poison") end)
+            coroutine.resume(poisonGrabCoroutine)
+        else
+            if poisonGrabCoroutine then
+                coroutine.close(poisonGrabCoroutine)
+                poisonGrabCoroutine = nil
+                for _, part in pairs(poisonHurtParts) do
+                    part.Position = Vector3.new(0, -200, 0)
+                end
+            end
+        end
+    end
+})
+
+local Toggle = GrabTab:CreateToggle({
+    Name = "Радиоактивный захват",
+    CurrentValue = false,
+    Flag = "RadioactiveGrab", 
+    Callback = function(enabled)
+        if enabled then
+            ufoGrabCoroutine = coroutine.create(function() grabHandler("radioactive") end)
+            coroutine.resume(ufoGrabCoroutine)
+        else
+            if ufoGrabCoroutine then
+                coroutine.close(ufoGrabCoroutine)
+                ufoGrabCoroutine = nil
+                for _, part in pairs(paintPlayerParts) do
+                    part.Position = Vector3.new(0, -200, 0)
+                end
+            end
+        end
+    end
+})
+
+local Toggle = GrabTab:CreateToggle({
+    Name = "Fire Grab",
+    CurrentValue = false,
+    Flag = "Огненный захват", 
+    Callback = function(enabled)
+        if enabled then
+            fireGrabCoroutine = coroutine.create(fireGrab)
+            coroutine.resume(fireGrabCoroutine)
+        else
+            if fireGrabCoroutine then
+                coroutine.close(fireGrabCoroutine)
+                fireGrabCoroutine = nil
+            end
+        end
+    end
+})
+
+local Toggle = GrabTab:CreateToggle({
+    Name = "Захват сквозь стены",
+    CurrentValue = false,
+    Flag = "NoclipGrab", 
+    Callback = function(enabled)
+        if enabled then
+            noclipGrabCoroutine = coroutine.create(noclipGrab)
+            coroutine.resume(noclipGrabCoroutine)
+        else
+            if noclipGrabCoroutine then
+                coroutine.close(noclipGrabCoroutine)
+                noclipGrabCoroutine = nil
+            end
+        end
+    end
+})
+
+local Toggle = GrabTab:CreateToggle({
+    Name = "Удар при хвате",
+    CurrentValue = false,
+    Flag = "KickGrab", 
+    Callback = function(enabled)
+        if enabled then
+            kickGrab()
+        else
+            for _, connection in pairs(kickGrabConnections) do
+                connection:Disconnect()
+            end
+            for _, player in pairs(Players:GetPlayers()) do
+                if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                    local hrp = player.Character.HumanoidRootPart
+                    if hrp:FindFirstChild("FirePlayerPart") then
+                        local fpp = hrp.FirePlayerPart
+                        fpp.Size = Vector3.new(2.5, 5.5, 2.5)
+                        fpp.CollisionGroup = "Default"
+                        fpp.CanQuery = false
+                    end
+                end
+            end
+            kickGrabConnections = {}
+        end
+    end
+})
+
+local Toggle = GrabTab:CreateToggle({
+    Name = "Закрепление объекта",
+    CurrentValue = false,
+    Flag = "AnchorKickGrab", 
+    Callback = function(enabled)
+        if enabled then
+            if not anchorKickCoroutine or coroutine.status(anchorKickCoroutine) == "dead" then
+                anchorKickCoroutine = coroutine.create(anchorKickGrab)
+                coroutine.resume(anchorKickCoroutine)
+            end
+        else
+            if anchorKickCoroutine and coroutine.status(anchorKickCoroutine) ~= "dead" then
+                coroutine.close(anchorKickCoroutine)
+                anchorKickCoroutine = nil
+            end
+        end
+    end
+})
+
+local Paragraph = GrabTab:CreateParagraph({
+   Title = "Все функции", 
+   Content = "Убедись, что на карте нет созданных тобой эффектов ПЕРЕД использованием этой функции"
+})
+local Toggle = GrabTab:CreateToggle({
+    Name = "Поджечь всех",
+    CurrentValue = false,
+    Flag = "FireAll", 
+    Callback = function(enabled)
+        if enabled then
+            fireAllCoroutine = coroutine.create(fireAll)
+            coroutine.resume(fireAllCoroutine)
+        else
+            if fireAllCoroutine then
+                coroutine.close(fireAllCoroutine)
+                fireAllCoroutine = nil
+            end
+        end
+    end
+})
+
+local Paragraph = PlayerTab:CreateParagraph({Title = "Игрок", Content = "Настройки персонажа"})
+
+local Toggle = PlayerTab:CreateToggle({
+    Name = "Скорость в приседе",
+    CurrentValue = false,
+    Flag = "CrouchSpeed", 
+    Callback = function(enabled)
+        if enabled then
+            crouchSpeedCoroutine = coroutine.create(function()
+                while true do
+                    pcall(function()
+                        if not playerCharacter.Humanoid then return end
+                        if playerCharacter.Humanoid.WalkSpeed == 5 then
+                            playerCharacter.Humanoid.WalkSpeed = crouchWalkSpeed
+                        end
+                    end)
+                    wait()
+                end
+            end)
+            coroutine.resume(crouchSpeedCoroutine)
+        elseif crouchSpeedCoroutine then
+            coroutine.close(crouchSpeedCoroutine)
+            crouchSpeedCoroutine = nil
+            if playerCharacter.Humanoid then
+                playerCharacter.Humanoid.WalkSpeed = 16
+            end
+        end
+    end
+})
+
+local Slider = PlayerTab:CreateSlider({
+    Name = "Установить скорость приседания",
+    Range = {6, 1000},
+    Increment = 1,
+    Suffix = "SetCrouchSpeed",
+    CurrentValue = 300,
+    Flag = "StrengthSlider", 
+    Callback = function(Value)
+        crouchWalkSpeed = Value
+    end
+})
+
+local Toggle = PlayerTab:CreateToggle({
+    Name = "Высота прыжка из приседа",
+    CurrentValue = false,
+    Flag = "CrouchJumpPower", 
+    Callback = function(enabled)
+        if enabled then
+            crouchJumpCoroutine = coroutine.create(function()
+                while true do
+                    pcall(function()
+                        if not playerCharacter.Humanoid then return end
+                        if playerCharacter.Humanoid.JumpPower == 12 then
+                            playerCharacter.Humanoid.JumpPower = crouchJumpPower
+                        end
+                    end)
+                    wait()
+                end
+            end)
+            coroutine.resume(crouchJumpCoroutine)
+        elseif crouchJumpCoroutine then
+            coroutine.close(crouchJumpCoroutine)
+            crouchJumpCoroutine = nil
+            if playerCharacter.Humanoid then
+                playerCharacter.Humanoid.JumpPower = 24
+            end
+        end
+    end
+})
+
+local Slider = PlayerTab:CreateSlider({
+    Name = "Применить прыжок из приседа",
+    Range = {6, 1000},
+    Increment = 1,
+    Suffix = "SetCrouchJumpPower",
+    CurrentValue = 300,
+    Flag = "StrengthSlider", 
+    Callback = function(Value)
+        crouchJumpPower = Value
+    end
+})
+
+local Paragraph = ObjectGrabTab:CreateParagraph({Title = "Захват предметов", Content = "Функция при захвате объекта"})
+
+local Toggle = ObjectGrabTab:CreateToggle({
+    Name = "Мёртвый хват",
+    CurrentValue = false,
+    Flag = "AnchorGrab", 
+    Callback = function(enabled)
+        if enabled then
+            if not anchorGrabCoroutine or coroutine.status(anchorGrabCoroutine) == "dead" then
+                anchorGrabCoroutine = coroutine.create(anchorGrab)
+                coroutine.resume(anchorGrabCoroutine)
+            end
+        else
+            if anchorGrabCoroutine and coroutine.status(anchorGrabCoroutine) ~= "dead" then
+                coroutine.close(anchorGrabCoroutine)
+                anchorGrabCoroutine = nil
+            end
+        end
+    end
+})
+
+local Paragraph = ObjectGrabTab:CreateParagraph({Title = "Инфо о мёртвом хвате", Content = "Если кто-то схватит твои замороженные предметы, они упадут и их придётся ставить заново!"})
+
+local Button = ObjectGrabTab:CreateButton({
+    Name = "Разморозить предметы",
+    Callback = cleanupAnchoredParts
+})
+
+local Button = ObjectGrabTab:CreateButton({
+    Name = "Разобрать на части",
+    Callback = function()
+        cleanupCompiledGroups()
+        cleanupAnchoredParts()
+
+        if compileCoroutine and coroutine.status(compileCoroutine) ~= "dead" then
+            coroutine.close(compileCoroutine)
+            compileCoroutine = nil
+        end
+    end
+})
+
+local Toggle = ObjectGrabTab:CreateToggle({
+    Name = "Авто-возврат выпавших предметов",
+    CurrentValue = false,
+    Flag = "AutoRecoverDroppedParts", 
+    Callback = function(enabled)
+        if enabled then
+            if not AutoRecoverDroppedPartsCoroutine or coroutine.status(AutoRecoverDroppedPartsCoroutine) == "dead" then
+                AutoRecoverDroppedPartsCoroutine = coroutine.create(recoverParts)
+                coroutine.resume(AutoRecoverDroppedPartsCoroutine)
+            end
+        else
+            if AutoRecoverDroppedPartsCoroutine and coroutine.status(AutoRecoverDroppedPartsCoroutine) ~= "dead" then
+                coroutine.close(AutoRecoverDroppedPartsCoroutine)
+                AutoRecoverDroppedPartsCoroutine = nil
+            end
+        end
+    end
+})
+
+local Button = ObjectGrabTab:CreateButton({
+    Name = "Разморозить основу",
+    Callback = unanchorPrimaryPart
+})
+
+local Paragraph = DefanseTab:CreateParagraph({Title = "Защита", Content = "Anti System"})
+
+local Toggle = DefanseTab:CreateToggle({
+    Name = "Анти-система",
+    CurrentValue = false,
+    Flag = "AutoStruggle", 
+    Callback = function(enabled)
+        if enabled then
+            autoStruggleCoroutine = RunService.Heartbeat:Connect(function()
+                local character = localPlayer.Character
+                if character and character:FindFirstChild("Head") then
+                    local head = character.Head
+                    local partOwner = head:FindFirstChild("PartOwner")
+                    if partOwner then
+                        Struggle:FireServer()
+                        ReplicatedStorage.GameCorrectionEvents.StopAllVelocity:FireServer()
+                        for _, part in pairs(character:GetChildren()) do
+                            if part:IsA("BasePart") then
+                                part.Anchored = true
+                            end
+                        end
+                        while localPlayer.IsHeld.Value do
+                            wait()
+                        end
+                        for _, part in pairs(character:GetChildren()) do
+                            if part:IsA("BasePart") then
+                                part.Anchored = false
+                            end
+                        end
+                    end
+                end
+            end)
+        else
+            if autoStruggleCoroutine then
+                autoStruggleCoroutine:Disconnect()
+                autoStruggleCoroutine = nil
+            end
+        end
+    end
+})
+
+local Toggle = DefanseTab:CreateToggle({
+    Name = "Анти-кик захват",
+    CurrentValue = false,
+    Flag = "AntiKickGrab", 
+    Callback = function(enabled)
+        if enabled then
+            local character = localPlayer.Character
+
+            antiKickCoroutine = RunService.Heartbeat:Connect(function()
+                local character = localPlayer.Character
+                if character and character:FindFirstChild("HumanoidRootPart") and character:FindFirstChild("HumanoidRootPart"):FindFirstChild("FirePlayerPart") then
+                    local partOwner = character:FindFirstChild("HumanoidRootPart"):FindFirstChild("FirePlayerPart"):FindFirstChild("PartOwner")
+                    if partOwner and partOwner.Value ~= localPlayer.Name then
+                        local args = {[1] = character:WaitForChild("HumanoidRootPart"), [2] = 0}
+                        game:GetService("ReplicatedStorage"):WaitForChild("CharacterEvents"):WaitForChild("RagdollRemote"):FireServer(unpack(args))
+                        print("grabbity shap!")
+                        wait(0.1)
+                        Struggle:FireServer()
+                    end
+                end
+            end)
+        else
+            if antiKickCoroutine then
+                antiKickCoroutine:Disconnect()
+                antiKickCoroutine = nil
+            end
+        end
+    end
+})
+
+local Toggle = DefanseTab:CreateToggle({
+    Name = "Анти-взрыв",
+    CurrentValue = false,
+    Flag = "AntiExplosion", 
+    Callback = function(enabled)
+        local localPlayer = game.Players.LocalPlayer
+
+        if enabled then
+            if localPlayer.Character then
+                setupAntiExplosion(localPlayer.Character)
+            end
+            characterAddedConn = localPlayer.CharacterAdded:Connect(function(character)
+                if antiExplosionConnection then
+                    antiExplosionConnection:Disconnect()
+                end
+                setupAntiExplosion(character)
+            end)
+        else
+            if antiExplosionConnection then
+                antiExplosionConnection:Disconnect()
+                antiExplosionConnection = nil
+            end
+            if characterAddedConn then
+                characterAddedConn:Disconnect()
+                characterAddedConn = nil
+            end
+        end
+    end
+})
+
+local Section = DefanseTab:CreateSection("самозащита")
+
+local Toggle = DefanseTab:CreateToggle({
+    Name = "самозащита",
+    CurrentValue = false,
+    Flag = "SelfDefenseAirSuspend", 
+    Callback = function(enabled)
+        if enabled then
+            autoDefendCoroutine = coroutine.create(function()
+                while wait(0.02) do
+                    local character = localPlayer.Character
+                    if character and character:FindFirstChild("Head") then
+                        local head = character.Head
+                        local partOwner = head:FindFirstChild("PartOwner")
+                        if partOwner then
+                            local attacker = Players:FindFirstChild(partOwner.Value)
+                            if attacker and attacker.Character then
+                                Struggle:FireServer()
+                                SetNetworkOwner:FireServer(attacker.Character.Head or attacker.Character.Torso, attacker.Character.HumanoidRootPart.FirePlayerPart.CFrame)
+                                task.wait(0.1)
+                                local target = attacker.Character:FindFirstChild("Torso")
+                                if target then
+                                    local velocity = target:FindFirstChild("l") or Instance.new("BodyVelocity")
+                                    velocity.Name = "l"
+                                    velocity.Parent = target
+                                    velocity.Velocity = Vector3.new(0, 50, 0)
+                                    velocity.MaxForce = Vector3.new(0, math.huge, 0)
+                                    Debris:AddItem(velocity, 100)
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+            coroutine.resume(autoDefendCoroutine)
+        else
+            if autoDefendCoroutine then
+                coroutine.close(autoDefendCoroutine)
+                autoDefendCoroutine = nil
+            end
+        end
+    end
+})
+
+local Toggle = DefanseTab:CreateToggle({
+    Name = "самозащита",
+    CurrentValue = false,
+    Flag = "selfdef", 
+    Callback = function(enabled)
+
+    end
+})
+
+local Paragraph = BlobmanTab:CreateParagraph({Title = "блобман мусор", Content = "Положить сервер Скоро больше? Пиши в ЛС для покупки"})
+
+local blobman1
+blobman1 = BlobmanTab:CreateToggle({
+    Name = "уничтожить сервер",
+    CurrentValue = false,
+    Flag = "destroyserv", 
+    Callback = function(enabled)
+        if enabled then
+            print("Toggle enabled")
+            blobmanCoroutine = coroutine.create(function()
+                local foundBlobman = false
+                for i, v in pairs(game.Workspace:GetDescendants()) do
+                    if v.Name == "CreatureBlobman" then
+                        print("Found CreatureBlobman")
+                        if v:FindFirstChild("VehicleSeat") and v.VehicleSeat:FindFirstChild("SeatWeld") and isDescendantOf(v.VehicleSeat.SeatWeld.Part1, localPlayer.Character) then
+                            print("Mounted on blobman")
+                            blobman = v
+                            foundBlobman = true
+                            break
+                        end
+                    end
+                end
+                print("Out of the loop!")
+
+                                if not foundBlobman then
+                    print("No mount found")
+                    Rayfield:Notify({
+                        Title = "Ошибка",
+                        Content = "Сначала нужно сесть верхом на Блобмана! Оседлай его и включи функцию заново.",
+                        Duration = 4, -- Чуть увеличил время, чтобы успели прочитать
+                        Image = 4483362458,
+                    })
+                    blobman1:Set(false)
+                    blobman = nil
+                    coroutine.close(blobmanCoroutine)
+                    blobmanCoroutine = nil
+                    return
+                end
+
+                while true do
+                    pcall(function()
+                        while wait() do
+                            for i, v in pairs(Players:GetChildren()) do
+                                if blobman and v ~= localPlayer then
+                                    blobGrabPlayer(v, blobman)
+                                    print(v.Name)
+                                    wait(_G.BlobmanDelay)
+                                end
+                            end
+                        end
+                    end)
+                    wait(0.02)
+                end
+            end)
+            coroutine.resume(blobmanCoroutine)
+        else
+            if blobmanCoroutine then
+                coroutine.close(blobmanCoroutine)
+                blobmanCoroutine = nil
+                blobman = nil
+            end
+        end
+    end
+})
+
+local Slider = BlobmanTab:CreateSlider({
+    Name = "уничтожить сервер бысро",
+    Range = {0.05, 1},
+    Increment = 0.01,
+    Suffix = "dessrvs",
+    CurrentValue = 0.5,
+    Flag = "Slider1",
+    Callback = function(Value)
+         _G.BlobmanDelay  = Value
+    end,
+ })
+
+local Paragraph = FunTab:CreateParagraph({Title = "Веселье", Content = "Троллинг и Угар!"})
+
+local Section = FunTab:CreateSection("тролл")
+
+local Input = FunTab:CreateInput({
+    Name = "количество монет",
+    CurrentValue = "",
+    PlaceholderText = "количество",
+    RemoveTextAfterFocusLost = false,
+    Flag = "Coin",
+    Callback = function(Text)
+        skolko = Text 
+    end,
+})
+
+local Button = FunTab:CreateButton({
+    Name = "получить монет",
+    Callback = function()
+
+        local coinAmount = tonumber(skolko) or 0 
+
+        game.Players.LocalPlayer.PlayerGui.MenuGui.TopRight.CoinsFrame.CoinsDisplay.Coins.Text = tostring(coinAmount)
+    end,
+})
+
+local Section = FunTab:CreateSection("веселье")
+
+local Slider = FunTab:CreateSlider({
+    Name = "Смещение",
+    Range = {1, 10},
+    Increment = 5,
+    Suffix = "",
+    CurrentValue = 10,
+    Flag = "",
+    Callback = function(Value)
+        decoyOffset = Value
+    end
+})
+
+local Input = FunTab:CreateInput({
+    Name = "радиус",
+    CurrentValue = "",
+    PlaceholderText = "бла бла мне надоело писать код помогите спасите",
+    RemoveTextAfterFocusLost = false,
+    Flag = "rd",
+    Callback = function(Value)
+        circleRadius = tonumber(Value) or 10
+    end,
+ })
+
+ local Button = FunTab:CreateButton({
+    Name = "Клон-сталкер",
+    Callback = function()
+        local decoys = {}
+        for _, descendant in pairs(workspace:GetDescendants()) do
+            if descendant:IsA("Model") and descendant.Name == "YouDecoy" then
+                table.insert(decoys, descendant)
+            end
+        end
+        local numDecoys = #decoys
+        local midPoint = math.ceil(numDecoys / 2)
+
+        local function updateDecoyPositions()
+            for index, decoy in pairs(decoys) do
+                local torso = decoy:FindFirstChild("Torso")
+                if torso then
+                    local bodyPosition = torso:FindFirstChild("BodyPosition")
+                    local bodyGyro = torso:FindFirstChild("BodyGyro")
+                    if bodyPosition and bodyGyro then
+                        local targetPosition
+                        if followMode then
+                            if playerCharacter and playerCharacter:FindFirstChild("HumanoidRootPart") then
+                                targetPosition = playerCharacter.HumanoidRootPart.Position
+                                local offset = (index - midPoint) * decoyOffset
+                                local forward = playerCharacter.HumanoidRootPart.CFrame.LookVector
+                                local right = playerCharacter.HumanoidRootPart.CFrame.RightVector
+                                targetPosition = targetPosition - forward * decoyOffset + right * offset
+                            end
+                        else
+                            local nearestPlayer = getNearestPlayer()
+                            if nearestPlayer and nearestPlayer.Character and nearestPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                                local angle = math.rad((index - 1) * (360 / numDecoys))
+                                targetPosition = nearestPlayer.Character.HumanoidRootPart.Position + Vector3.new(math.cos(angle) * circleRadius, 0, math.sin(angle) * circleRadius)
+                                bodyGyro.CFrame = CFrame.new(torso.Position, nearestPlayer.Character.HumanoidRootPart.Position)
+                            end
+                        end
+
+                        if targetPosition then
+                            local distance = (targetPosition - torso.Position).Magnitude
+                            if distance > stopDistance then
+                                bodyPosition.Position = targetPosition
+                                if followMode then
+                                    bodyGyro.CFrame = CFrame.new(torso.Position, targetPosition)
+                                end
+                            else
+                                bodyPosition.Position = torso.Position
+                                bodyGyro.CFrame = torso.CFrame
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        local function setupDecoy(decoy)
+            local torso = decoy:FindFirstChild("Torso")
+            if torso then
+                local bodyPosition = Instance.new("BodyPosition")
+                local bodyGyro = Instance.new("BodyGyro")
+                bodyPosition.Parent = torso
+                bodyGyro.Parent = torso
+                bodyPosition.MaxForce = Vector3.new(40000, 40000, 40000)
+                bodyPosition.D = 100
+                bodyPosition.P = 100
+                bodyGyro.MaxTorque = Vector3.new(40000, 40000, 40000)
+                bodyGyro.D = 100
+                bodyGyro.P = 20000
+                local connection = RunService.Heartbeat:Connect(function()
+                    updateDecoyPositions()
+                end)
+                table.insert(connections, connection)
+                SetNetworkOwner:FireServer(torso, playerCharacter.Head.CFrame)
+            end
+        end
+
+        for _, decoy in pairs(decoys) do
+            setupDecoy(decoy)
+        end
+        Rayfield:Notify({Title = "Уведомления",Content = "получил "..numDecoys.." Юниты. Если зависли и не идут кликни по ним вручную", Duration = 6.5,Image = 4483362458,})
+    end
+})
+
+ local Button = FunTab:CreateButton({
+    Name = "Режим переключения",
+
+    Callback = function()
+        followMode = not followMode
+    end,
+ })
+
+ FunTab:AddButton({
+    Name = "Отключить клонов",
+    Callback = cleanupConnections(connections)
+})
