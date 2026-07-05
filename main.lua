@@ -905,7 +905,7 @@ if localVersion ~= version then
 end
 
 local Window = Rayfield:CreateWindow({
-    Name = "Venom X",
+    Name = "Nolin X",
     Icon = 0, -- Icon in Topbar. Can use Lucide Icons (string) or Roblox Image (number). 0 to use no icon (default).
     LoadingTitle = "Nolin X Loaded",
     LoadingSubtitle = "by Nolin X",
@@ -940,7 +940,7 @@ local Window = Rayfield:CreateWindow({
 
 local homeTab = Window:CreateTab("Комбат", 10723407389)
 
-local GrabTab = Window:CreateTab("Основное", 10723404472)
+local GrabTab = Window:CreateTab("Главная", 10723404472)
 
 local PlayerTab = Window:CreateTab("текущий игрок", 10747373176)
 local ObjectGrabTab = Window:CreateTab("Хват объекта", 10709782497) 
@@ -954,7 +954,7 @@ local KeybindsTab = Window:CreateTab("горячие клавиши", 1072341676
 
 local Paragraph = homeTab:CreateParagraph({Title = "UI / NOLIN", Content = "Rayfield library by sirius"})
 local Divider = homeTab:CreateDivider()
-local Paragraph = homeTab:CreateParagraph({Title = "Home!", Content = "Welcome to Venom X! "..Player.Name.." Thanks for useing script!"})
+local Paragraph = homeTab:CreateParagraph({Title = "Главная", Content = "Добро пожаловать в Nolin X! "..Player.Name.." Спасибо за использование моего скрипта!"})
 
 local Label = homeTab:CreateLabel("Дискорд", 10709797725, Color3.fromRGB(10, 10, 10), false) -- Title, Icon, Color, IgnoreTheme
 
