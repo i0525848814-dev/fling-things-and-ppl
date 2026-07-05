@@ -938,9 +938,9 @@ local Window = Rayfield:CreateWindow({
     }
  })
 
-local homeTab = Window:CreateTab("Комбат", 10723407389)
+local homeTab = Window:CreateTab("Главная", 10723407389)
 
-local GrabTab = Window:CreateTab("Главная", 10723404472)
+local GrabTab = Window:CreateTab("Комбат", 10723404472)
 
 local PlayerTab = Window:CreateTab("текущий игрок", 10747373176)
 local ObjectGrabTab = Window:CreateTab("Хват объекта", 10709782497) 
