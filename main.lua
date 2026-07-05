@@ -897,7 +897,7 @@ end
 
 local localVersion = "8.2-stable"
 if localVersion ~= version then
-    Rayfield:Notify({Title = "Venom X",Content = "Script.Ftap",Duration = 6.5,Image = 4483362458,})
+    Rayfield:Notify({Title = "Nolin X",Content = "Script.Ftap",Duration = 6.5,Image = 4483362458,})
     setclipboard('loadstring(game:HttpGet("https://raw.githubusercontent.com/Undebolted/FTAP/main/Script.lua",true))()')
     wait(12)
     Rayfield:Destroy()
@@ -907,8 +907,8 @@ end
 local Window = Rayfield:CreateWindow({
     Name = "Venom X",
     Icon = 0, -- Icon in Topbar. Can use Lucide Icons (string) or Roblox Image (number). 0 to use no icon (default).
-    LoadingTitle = "Venom X Loaded",
-    LoadingSubtitle = "by Chill and NovaX",
+    LoadingTitle = "Nolin X Loaded",
+    LoadingSubtitle = "by Nolin X",
     Theme = "Default", -- Check https://docs.sirius.menu/rayfield/configuration/themes
  
     DisableRayfieldPrompts = false,
